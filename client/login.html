@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guaro Royal | Acceso</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="franja">
+    <span class="rojo"></span>
+    <span class="azul"></span>
+    <span class="amarillo"></span>
+    <span class="verde"></span>
+  </div>
+
+
+  <main class="contenedor">
+    <header class="encabezado">
+      <div class="tablero-logo" aria-hidden="true">
+        <div class="cuadro rojo"><span>●</span></div>
+        <div class="cuadro azul"><span>●</span></div>
+        <div class="cuadro amarillo"><span>●</span></div>
+        <div class="cuadro verde"><span>●</span></div>
+        <div class="centro-logo">GR</div>
+      </div>
+
+
+      <p class="etiqueta">EL TABLERO TE ESTÁ ESPERANDO</p>
+      <h1>GUARO <span>ROYAL</span></h1>
+      <p class="subtitulo">
+        Lanza los dados, mueve tus fichas y demuestra quién es el rey del parqués.
+      </p>
+    </header>
+
+
+    <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+
+
+    <section class="grid">
+      <form id="form-register" class="tarjeta">
+        <div class="fila-superior">
+          <span class="numero">01</span>
+          <span class="ficha-mini rojo"></span>
+        </div>
+
+
+        <p class="tipo-formulario">NUEVO JUGADOR</p>
+        <h2>Crear cuenta</h2>
+        <p class="descripcion">
+          Regístrate y prepárate para la próxima partida.
+        </p>
+
+
+        <label for="reg-user">Nombre de usuario</label>
+        <input
+          id="reg-user"
+          name="username"
+          type="text"
+          placeholder="Tu nombre de jugador"
+          autocomplete="username"
+          minlength="3"
+          maxlength="20"
+          pattern="[A-Za-z0-9_]+"
+          required
+        >
+
+
+        <label for="reg-pass">Contraseña</label>
+        <input
+          id="reg-pass"
+          name="password"
+          type="password"
+          placeholder="Mínimo 6 caracteres"
+          autocomplete="new-password"
+          minlength="6"
+          required
+        >
+
+
+        <button type="submit" class="boton boton-dorado">
+          Registrarme <span>🎲</span>
+        </button>
+
+
+        <div id="msg-register" class="mensaje"
+             role="status" aria-live="polite"></div>
+      </form>
+
+
+      <form id="form-login" class="tarjeta">
+        <div class="fila-superior">
+          <span class="numero">02</span>
+          <span class="ficha-mini azul"></span>
+        </div>
+
+
+        <p class="tipo-formulario">JUGADOR REGISTRADO</p>
+        <h2>Iniciar sesión</h2>
+        <p class="descripcion">
+          Entra a tu cuenta y vuelve a la mesa de juego.
+        </p>
+
+
+        <label for="login-user">Nombre de usuario</label>
+        <input
+          id="login-user"
+          name="username"
+          type="text"
+          placeholder="Tu nombre de jugador"
+          autocomplete="username"
+          required
+        >
+
+
+        <label for="login-pass">Contraseña</label>
+        <input
+          id="login-pass"
+          name="password"
+          type="password"
+          placeholder="Tu contraseña"
+          autocomplete="current-password"
+          required
+        >
+
+
+        <button type="submit" class="boton boton-contorno">
+          Entrar a jugar <span>🎲</span>
+        </button>
+
+
+        <div id="msg-login" class="mensaje"
+             role="status" aria-live="polite"></div>
+      </form>
+    </section>
+
+
+    <footer class="pie">
+      <p>GUARO ROYAL</p>
+      <span>CUATRO COLORES · UNA SOLA META</span>
+    </footer>
+  </main>
+
+
+  <script src="js/config.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

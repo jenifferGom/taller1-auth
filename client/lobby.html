@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parqués — Lobby</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="franja"><span></span><span></span><span></span><span></span></div>
+
+  <main class="contenedor">
+    <div class="cabecera">
+      <div>
+        <h1>Lobby</h1>
+        <span class="estado"><span id="punto" class="punto"></span><span id="estado">Conectando…</span></span>
+      </div>
+      <button id="logout" class="peligro">Cerrar sesión</button>
+    </div>
+
+    <div class="grid">
+      <section class="tarjeta">
+        <h2>Tu sesión</h2>
+        <div class="datos">
+          Usuario: <b id="yo"></b><br>
+          El token vence en: <b id="expira">—</b>
+        </div>
+        <p id="actividad" class="actividad"></p>
+      </section>
+
+      <section class="tarjeta">
+        <h2>Jugadores en línea <span id="contador" class="contador"></span></h2>
+        <ul id="jugadores" class="jugadores">
+          <li class="vacio">Esperando al coordinador…</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/lobby.js"></script>
+</body>
+</html>
