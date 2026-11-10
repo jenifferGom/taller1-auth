@@ -3,146 +3,168 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Guaro Royal | Acceso</title>
+  <title>GUARO ROYAL | Ingresar</title>
+
   <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Inicio de sesión oficial con Google -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
-<body>
+
+<body class="pagina-login">
+
   <div class="franja">
-    <span class="rojo"></span>
-    <span class="azul"></span>
-    <span class="amarillo"></span>
-    <span class="verde"></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
   </div>
 
-
   <main class="contenedor">
+
     <header class="encabezado">
-      <div class="tablero-logo" aria-hidden="true">
-        <div class="cuadro rojo"><span>●</span></div>
-        <div class="cuadro azul"><span>●</span></div>
-        <div class="cuadro amarillo"><span>●</span></div>
-        <div class="cuadro verde"><span>●</span></div>
+      <div class="tablero-logo">
+        <div class="cuadro cuadro-amarillo"></div>
+        <div class="cuadro cuadro-azul"></div>
+        <div class="cuadro cuadro-rojo"></div>
+        <div class="cuadro cuadro-verde"></div>
         <div class="centro-logo">GR</div>
       </div>
 
-
-      <p class="etiqueta">EL TABLERO TE ESTÁ ESPERANDO</p>
+      <p class="marca">EL JUEGO DE SIEMPRE</p>
       <h1>GUARO <span>ROYAL</span></h1>
       <p class="subtitulo">
-        Lanza los dados, mueve tus fichas y demuestra quién es el rey del parqués.
+        Reúne a tus amigos y demuestra quién manda en el tablero.
       </p>
     </header>
 
+    <div id="aviso" class="aviso"></div>
 
-    <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+    <div class="grid">
 
-
-    <section class="grid">
+      <!-- REGISTRO -->
       <form id="form-register" class="tarjeta">
-        <div class="fila-superior">
-          <span class="numero">01</span>
-          <span class="ficha-mini rojo"></span>
-        </div>
+        <div class="tipo-formulario">NUEVO JUGADOR</div>
 
-
-        <p class="tipo-formulario">NUEVO JUGADOR</p>
         <h2>Crear cuenta</h2>
         <p class="descripcion">
-          Regístrate y prepárate para la próxima partida.
+          Regístrate y prepárate para jugar.
         </p>
-
 
         <label for="reg-user">Nombre de usuario</label>
         <input
           id="reg-user"
           name="username"
-          type="text"
-          placeholder="Tu nombre de jugador"
           autocomplete="username"
-          minlength="3"
-          maxlength="20"
-          pattern="[A-Za-z0-9_]+"
+          placeholder="Ej. jugador123"
           required
         >
-
 
         <label for="reg-pass">Contraseña</label>
         <input
           id="reg-pass"
           name="password"
           type="password"
-          placeholder="Mínimo 6 caracteres"
           autocomplete="new-password"
-          minlength="6"
+          placeholder="Mínimo 6 caracteres"
           required
         >
 
-
         <button type="submit" class="boton boton-dorado">
-          Registrarme <span>🎲</span>
+          Crear cuenta
         </button>
 
-
-        <div id="msg-register" class="mensaje"
-             role="status" aria-live="polite"></div>
+        <div id="msg-register" class="mensaje"></div>
       </form>
 
-
+      <!-- INICIO DE SESIÓN -->
       <form id="form-login" class="tarjeta">
-        <div class="fila-superior">
-          <span class="numero">02</span>
-          <span class="ficha-mini azul"></span>
-        </div>
+        <div class="tipo-formulario">BIENVENIDO DE NUEVO</div>
 
-
-        <p class="tipo-formulario">JUGADOR REGISTRADO</p>
         <h2>Iniciar sesión</h2>
         <p class="descripcion">
-          Entra a tu cuenta y vuelve a la mesa de juego.
+          Ingresa tus datos para volver a la partida.
         </p>
-
 
         <label for="login-user">Nombre de usuario</label>
         <input
           id="login-user"
           name="username"
-          type="text"
-          placeholder="Tu nombre de jugador"
           autocomplete="username"
+          placeholder="Tu usuario"
           required
         >
-
 
         <label for="login-pass">Contraseña</label>
         <input
           id="login-pass"
           name="password"
           type="password"
-          placeholder="Tu contraseña"
           autocomplete="current-password"
+          placeholder="Tu contraseña"
           required
         >
 
-
-        <button type="submit" class="boton boton-contorno">
-          Entrar a jugar <span>🎲</span>
+        <button type="submit" class="boton boton-dorado">
+          Entrar al juego
         </button>
 
-
-        <div id="msg-login" class="mensaje"
-             role="status" aria-live="polite"></div>
+        <div id="msg-login" class="mensaje"></div>
       </form>
-    </section>
 
+      <!-- INICIO CON GOOGLE -->
+      <section class="tarjeta tarjeta-google">
+        <div class="google-contenido">
+          <div class="tipo-formulario">ACCESO RÁPIDO</div>
+
+          <h2>¿Prefieres entrar con Google?</h2>
+          <p class="descripcion">
+            También puedes iniciar sesión de forma rápida y segura.
+          </p>
+
+          <!-- Google dibuja aquí su botón oficial -->
+          <div id="google-btn"></div>
+
+          <!-- Aparece únicamente si es el primer ingreso con Google -->
+          <form id="form-google-username" class="oculto">
+
+            <p class="nota">
+              ¡Es tu primera vez! Elige el nombre con el que te verán
+              los demás jugadores.
+            </p>
+
+            <label for="google-user">Nombre de usuario</label>
+
+            <input
+              id="google-user"
+              name="username"
+              autocomplete="off"
+              placeholder="Elige tu nombre de jugador"
+              required
+            >
+
+            <button type="submit" class="boton boton-dorado">
+              Continuar
+            </button>
+
+          </form>
+
+          <div id="msg-google" class="mensaje"></div>
+        </div>
+      </section>
+
+    </div>
 
     <footer class="pie">
-      <p>GUARO ROYAL</p>
-      <span>CUATRO COLORES · UNA SOLA META</span>
+      <span>GUARO ROYAL</span>
+      <span>•</span>
+      <span>Que comience la partida</span>
     </footer>
-  </main>
 
+  </main>
 
   <script src="js/config.js"></script>
   <script src="js/login.js"></script>
+
 </body>
 </html>

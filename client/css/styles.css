@@ -1,7 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Russo+One&display=swap');
-/* =========================
-   COLORES GENERALES
-========================= */
+
 :root {
   --fondo: #091a14;
   --panel: #112c21;
@@ -15,504 +13,784 @@
   --verde: #42b879;
   --borde: rgba(230, 198, 111, 0.25);
   --sombra: 0 16px 40px rgba(0, 0, 0, 0.25);
+  --radio: 18px;
 }
+
 * {
   box-sizing: border-box;
 }
+
+html {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  padding: 0 20px 35px;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Nunito', sans-serif;
   color: var(--texto);
-  font-family: 'Nunito', Arial, sans-serif;
   background:
-    radial-gradient(ellipse at top, #1b4935, transparent 48%),
-    linear-gradient(145deg, #071510, var(--fondo) 65%, #10271d);
+    radial-gradient(ellipse at 50% 0%, rgba(43, 105, 69, 0.28), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(19, 71, 48, 0.2), transparent 40%),
+    var(--fondo);
 }
-/* =========================
-   FRANJA DE CUATRO COLORES
-========================= */
+
+/* BARRA DE LOS CUATRO COLORES */
+
 .franja {
   display: flex;
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
-  height: 6px;
+  max-width: 760px;
+  height: 7px;
+  border-radius: 20px;
   overflow: hidden;
+  margin-bottom: 35px;
+  box-shadow: 0 0 18px rgba(230, 198, 111, 0.12);
 }
+
 .franja span {
   flex: 1;
 }
+
 .franja span:nth-child(1) {
-  background: var(--rojo);
+  background: var(--amarillo);
 }
+
 .franja span:nth-child(2) {
   background: var(--azul);
 }
+
 .franja span:nth-child(3) {
-  background: var(--amarillo);
+  background: var(--rojo);
 }
+
 .franja span:nth-child(4) {
   background: var(--verde);
 }
-/* =========================
-   CONTENEDOR
-========================= */
+
+/* CONTENEDORES GENERALES */
+
 .contenedor {
   width: 100%;
-  max-width: 960px;
-  margin: 0 auto;
-  padding-top: 38px;
+  max-width: 850px;
 }
-/* =========================
-   CABECERA DEL LOBBY
-========================= */
-.cabecera {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 28px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--borde);
+
+.contenedor.ancho {
+  max-width: 1320px;
 }
-.cabecera h1 {
-  margin: 0 0 12px;
-  color: var(--texto);
-  font-family: 'Russo One', Impact, sans-serif;
-  font-size: clamp(30px, 5vw, 42px);
-  font-weight: 400;
-  letter-spacing: 1px;
+
+h1,
+h2,
+p {
+  margin-top: 0;
 }
-.cabecera h1::after {
-  content: " · GUARO ROYAL";
-  color: var(--dorado);
-  font-family: 'Nunito', Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  vertical-align: middle;
-}
-/* =========================
-   ESTADO DE CONEXIÓN
-========================= */
-.estado {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--secundario);
-  font-size: 13px;
-  font-weight: 700;
-}
-.punto {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--amarillo);
-  box-shadow: 0 0 10px rgba(244, 198, 68, 0.35);
-}
-/* =========================
-   BOTÓN CERRAR SESIÓN
-========================= */
-button {
-  font-family: 'Nunito', Arial, sans-serif;
-}
-.peligro {
-  padding: 11px 17px;
-  border: 1px solid rgba(237, 69, 69, 0.55);
-  border-radius: 8px;
-  background: rgba(237, 69, 69, 0.09);
-  color: #ffaaaa;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
-}
-.peligro:hover {
-  background: rgba(237, 69, 69, 0.2);
-  transform: translateY(-1px);
-}
-.peligro:focus-visible {
-  outline: 2px solid var(--dorado);
-  outline-offset: 3px;
-}
-/* =========================
-   TARJETAS DEL LOBBY
-========================= */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
-  align-items: start;
-}
-.tarjeta {
-  min-width: 0;
-  padding: 25px;
-  border: 1px solid var(--borde);
-  border-radius: 14px;
-  background:
-    linear-gradient(145deg, rgba(22, 56, 43, 0.97), rgba(9, 30, 22, 0.98));
-  box-shadow: var(--sombra);
-  transition: border-color 0.2s, transform 0.2s;
-}
-.tarjeta:hover {
-  border-color: rgba(230, 198, 111, 0.48);
-  transform: translateY(-2px);
-}
-.tarjeta h2 {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 19px;
-  padding-bottom: 13px;
-  border-bottom: 1px solid rgba(230, 198, 111, 0.16);
-  color: var(--texto);
-  font-family: 'Russo One', Impact, sans-serif;
-  font-size: 19px;
+
+h1,
+h2 {
+  font-family: 'Russo One', sans-serif;
   font-weight: 400;
 }
-/* =========================
-   INFORMACIÓN DE LA SESIÓN
-========================= */
-.datos {
-  padding: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 9px;
-  background: rgba(4, 18, 12, 0.38);
-  color: var(--secundario);
-  font-size: 13px;
-  line-height: 2.2;
-  overflow-wrap: anywhere;
+
+h1 {
+  margin-bottom: 8px;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  letter-spacing: 1px;
 }
-.datos b {
+
+h1 span {
   color: var(--dorado);
-  font-weight: 900;
 }
-.actividad {
-  min-height: 20px;
-  margin: 15px 0 0;
-  color: var(--secundario);
-  font-size: 12px;
-  line-height: 1.7;
-  overflow-wrap: anywhere;
-}
-/* =========================
-   CONTADOR DE JUGADORES
-========================= */
-.contador {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 27px;
-  min-height: 27px;
-  padding: 3px 8px;
-  border: 1px solid rgba(230, 198, 111, 0.35);
-  border-radius: 8px;
-  background: rgba(230, 198, 111, 0.09);
-  color: var(--dorado);
-  font-family: 'Nunito', Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 900;
-}
-/* =========================
-   LISTA DE JUGADORES
-========================= */
-.jugadores {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.jugadores li {
-  position: relative;
-  padding: 13px 14px 13px 39px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 9px;
-  background: rgba(4, 18, 12, 0.35);
+
+h2 {
+  margin-bottom: 12px;
+  font-size: 1.25rem;
   color: var(--texto);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-  transition: border-color 0.2s, background 0.2s;
 }
-.jugadores li:not(.vacio)::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 14px;
-  width: 12px;
-  height: 12px;
-  border: 3px solid rgba(255, 255, 255, 0.85);
-  border-radius: 50%;
-  background: var(--verde);
-  transform: translateY(-50%);
-}
-.jugadores li:nth-child(4n + 1):not(.vacio)::before {
-  background: var(--rojo);
-}
-.jugadores li:nth-child(4n + 2):not(.vacio)::before {
-  background: var(--azul);
-}
-.jugadores li:nth-child(4n + 3):not(.vacio)::before {
-  background: var(--amarillo);
-}
-.jugadores li:nth-child(4n + 4):not(.vacio)::before {
-  background: var(--verde);
-}
-.jugadores li:not(.vacio):hover {
-  border-color: var(--borde);
-  background: rgba(255, 255, 255, 0.04);
-}
-.jugadores .vacio {
-  padding: 22px 14px;
-  border: 1px dashed var(--borde);
-  background: rgba(4, 18, 12, 0.2);
+
+.subtitulo {
+  margin-bottom: 0;
   color: var(--secundario);
-  text-align: center;
-  font-size: 12px;
+  font-size: 1rem;
+  line-height: 1.6;
 }
-.jugadores .vacio::before {
-  content: "🎲";
-  display: block;
-  margin-bottom: 7px;
-  font-size: 23px;
+
+.descripcion {
+  margin: 0 0 18px;
+  color: var(--secundario);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
-/* =========================
-   ESTILOS DEL LOGIN
-   Se conservan las clases
-   utilizadas en login.html
-========================= */
+
+/* ENCABEZADO DEL LOGIN */
+
 .encabezado {
-  margin-bottom: 28px;
   text-align: center;
+  margin-bottom: 32px;
 }
+
+.marca {
+  margin: 18px 0 7px;
+  color: var(--dorado);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 4px;
+}
+
 .tablero-logo {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  width: 94px;
-  height: 94px;
+  width: 82px;
+  height: 82px;
   margin: 0 auto;
-  overflow: hidden;
-  border: 4px solid #f4e8c5;
-  border-radius: 12px;
-  box-shadow: 0 0 0 5px rgba(230, 198, 111, 0.1);
-  transform: rotate(-4deg);
+  padding: 8px;
+  gap: 5px;
+  border: 1px solid var(--borde);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: var(--sombra);
+  transform: rotate(-5deg);
 }
+
 .cuadro {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 21px;
+  border-radius: 7px;
 }
-.cuadro.rojo { background: var(--rojo); }
-.cuadro.azul { background: var(--azul); }
-.cuadro.amarillo { background: var(--amarillo); }
-.cuadro.verde { background: var(--verde); }
+
+.cuadro-amarillo {
+  background: var(--amarillo);
+}
+
+.cuadro-azul {
+  background: var(--azul);
+}
+
+.cuadro-rojo {
+  background: var(--rojo);
+}
+
+.cuadro-verde {
+  background: var(--verde);
+}
+
 .centro-logo {
   position: absolute;
   top: 50%;
   left: 50%;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 2px solid #f4e8c5;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--dorado);
   border-radius: 50%;
-  background: #173b2b;
   color: var(--dorado);
+  background: var(--fondo);
   font-family: 'Russo One', sans-serif;
-  font-size: 11px;
+  font-size: 0.65rem;
   transform: translate(-50%, -50%);
 }
-.encabezado .etiqueta {
-  margin: 15px 0 7px;
-  color: var(--dorado);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 3px;
+
+/* TARJETAS */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
 }
-.encabezado h1 {
-  margin: 0;
-  font-family: 'Russo One', sans-serif;
-  font-size: clamp(32px, 6vw, 54px);
-  font-weight: 400;
+
+.tarjeta {
+  min-width: 0;
+  padding: 25px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: linear-gradient(
+    145deg,
+    rgba(23, 59, 43, 0.98),
+    rgba(17, 44, 33, 0.98)
+  );
+  box-shadow: var(--sombra);
 }
-.encabezado h1 span {
-  color: var(--dorado);
+
+.tarjeta h2 {
+  margin-top: 5px;
 }
-.subtitulo {
-  max-width: 570px;
-  margin: 12px auto 0;
-  color: var(--secundario);
-  font-size: 13px;
-  line-height: 1.8;
-}
-.fila-superior {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 15px;
-}
-.numero {
-  color: var(--dorado);
-  font-family: 'Russo One', sans-serif;
-  font-size: 19px;
-}
-.ficha-mini {
-  width: 19px;
-  height: 19px;
-  border: 3px solid white;
-  border-radius: 50%;
-}
-.ficha-mini.rojo { background: var(--rojo); }
-.ficha-mini.azul { background: var(--azul); }
+
 .tipo-formulario {
-  margin: 0 0 7px;
-  color: var(--secundario);
-  font-size: 10px;
+  margin-bottom: 9px;
+  color: var(--dorado);
+  font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 2px;
 }
-.tarjeta h2 {
-  font-family: 'Russo One', sans-serif;
+
+.tarjeta-google {
+  grid-column: 1 / -1;
+  text-align: center;
 }
-.descripcion {
-  min-height: 42px;
-  margin: 9px 0 20px;
+
+.google-contenido {
+  max-width: 470px;
+  margin: 0 auto;
+}
+
+#google-btn {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 18px;
+}
+
+.nota {
+  margin: 18px 0 12px;
   color: var(--secundario);
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
-.tarjeta label {
+
+.oculto {
+  display: none !important;
+}
+
+/* FORMULARIOS */
+
+label {
   display: block;
-  margin: 15px 0 7px;
-  font-size: 12px;
+  margin: 14px 0 6px;
+  color: var(--secundario);
+  font-size: 0.85rem;
   font-weight: 800;
 }
-.tarjeta input {
+
+input {
   display: block;
   width: 100%;
   min-height: 45px;
-  padding: 12px;
-  border: 1px solid rgba(220, 235, 220, 0.17);
-  border-radius: 8px;
+  padding: 11px 13px;
+  border: 1px solid rgba(184, 201, 189, 0.2);
+  border-radius: 10px;
   outline: none;
-  background: rgba(4, 18, 12, 0.6);
+  background: rgba(5, 21, 14, 0.65);
   color: var(--texto);
-  font-family: inherit;
-  font-size: 13px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.tarjeta input::placeholder {
-  color: #829789;
+
+input::placeholder {
+  color: rgba(184, 201, 189, 0.48);
 }
-.tarjeta input:focus {
+
+input:focus {
   border-color: var(--dorado);
   box-shadow: 0 0 0 3px rgba(230, 198, 111, 0.12);
 }
-.boton {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  min-height: 47px;
-  margin-top: 22px;
-  padding: 12px 15px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+
+input:disabled {
+  opacity: 0.6;
+}
+
+/* BOTONES */
+
+button {
+  font-family: 'Nunito', sans-serif;
   cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
+  transition: transform 0.2s, filter 0.2s, background 0.2s;
+}
+
+.boton {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 0.95rem;
   font-weight: 900;
 }
+
 .boton-dorado {
-  background: linear-gradient(135deg, #f4d77d, #d9b24e);
-  color: #17271c;
+  width: 100%;
+  margin-top: 20px;
+  color: #172116;
+  background: linear-gradient(135deg, #f0d98f, #d6ad4f);
+  box-shadow: 0 5px 16px rgba(230, 198, 111, 0.13);
 }
-.boton-contorno {
-  border-color: rgba(230, 198, 111, 0.65);
-  background: rgba(230, 198, 111, 0.06);
-  color: #f4dfa1;
+
+.boton-dorado:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
 }
+
+.boton:active {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
+.peligro {
+  color: #fff;
+  background: #a92d2d;
+  border: 1px solid rgba(237, 69, 69, 0.45);
+}
+
+.peligro:hover {
+  background: #c43b3b;
+}
+
+/* MENSAJES Y AVISOS */
+
 .mensaje {
-  min-height: 20px;
+  min-height: 1.2em;
   margin-top: 12px;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.mensaje.error {
+  color: #ff7777;
+}
+
+.mensaje.ok {
+  color: #65d99b;
+}
+
+.aviso {
+  display: none;
+  margin-bottom: 18px;
+  padding: 13px 16px;
+  border: 1px solid rgba(237, 69, 69, 0.45);
+  border-radius: 10px;
+  color: #ffd0d0;
+  background: rgba(150, 35, 35, 0.2);
+  font-size: 0.9rem;
+}
+
+.aviso.visible {
+  display: block;
+}
+
+/* PIE DE PÁGINA */
+
+.pie {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 30px;
+  color: rgba(184, 201, 189, 0.6);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.pie span:first-child {
+  color: var(--dorado);
+}
+
+/* =================================
+   SALA DE JUEGO
+================================= */
+
+.pagina-juego {
+  padding-top: 25px;
+}
+
+.pagina-juego .franja {
+  max-width: 1320px;
+  margin-bottom: 25px;
+}
+
+.cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: rgba(17, 44, 33, 0.8);
+  box-shadow: var(--sombra);
+}
+
+.titulo-sala .marca {
+  margin: 0 0 6px;
+}
+
+.titulo-sala h1 {
+  margin-bottom: 8px;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+}
+
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--secundario);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.punto {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #929b94;
+}
+
+.punto.on {
+  background: var(--verde);
+  box-shadow: 0 0 10px rgba(66, 184, 121, 0.65);
+}
+
+.punto.off {
+  background: var(--rojo);
+  box-shadow: 0 0 10px rgba(237, 69, 69, 0.55);
+}
+
+.juego {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 20px;
+  align-items: start;
+}
+
+.encabezado-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.encabezado-panel h2 {
+  margin-bottom: 0;
+}
+
+.etiqueta-tablero {
+  padding: 6px 10px;
+  border: 1px solid rgba(66, 184, 121, 0.3);
+  border-radius: 30px;
+  color: #70d69d;
+  background: rgba(66, 184, 121, 0.1);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.tarjeta-canvas {
+  padding: 18px;
+}
+
+/* El canvas sigue siendo el tablero original del proyecto */
+
+#mundo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid rgba(230, 198, 111, 0.18);
+  border-radius: 12px;
+  outline: none;
+  background: #fbf7ee;
+}
+
+.ayuda {
+  margin: 13px 3px 0;
+  color: var(--secundario);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.ayuda b {
+  color: var(--dorado);
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+}
+
+.panel .tarjeta {
+  padding: 20px;
+}
+
+.panel .tarjeta h2 {
+  margin-bottom: 13px;
+}
+
+/* INFORMACIÓN DE SESIÓN */
+
+.datos {
+  color: var(--secundario);
+  font-size: 0.9rem;
+  line-height: 1.9;
   overflow-wrap: anywhere;
 }
-.pie {
-  margin-top: 28px;
-  text-align: center;
+
+.datos b {
+  color: var(--texto);
 }
-.pie p {
-  margin: 8px 0 5px;
+
+.actividad {
+  min-height: 1.2em;
+  margin: 12px 0 0;
   color: var(--dorado);
-  font-family: 'Russo One', sans-serif;
-  font-size: 12px;
-  letter-spacing: 2px;
+  font-size: 0.83rem;
+  line-height: 1.5;
 }
-.pie > span {
-  color: #8da496;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 2px;
+
+/* INSIGNIAS DE AUTENTICACIÓN */
+
+.insignia {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  vertical-align: 1px;
+  font-size: 0.7rem;
+  font-weight: 900;
 }
-/* =========================
-   ADAPTACIÓN A CELULARES
-========================= */
-@media (max-width: 700px) {
+
+.insignia.google {
+  color: #a9caff;
+  border: 1px solid rgba(67, 137, 245, 0.35);
+  background: rgba(67, 137, 245, 0.15);
+}
+
+.insignia.local {
+  color: var(--dorado);
+  border: 1px solid var(--borde);
+  background: rgba(230, 198, 111, 0.1);
+}
+
+/* SELECTOR DE COLORES */
+
+.colores {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.color {
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 -5px 0 rgba(0, 0, 0, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.color:hover {
+  filter: brightness(1.12);
+  transform: translateY(-3px);
+}
+
+.color.elegido {
+  border-color: var(--dorado);
+  box-shadow:
+    0 0 0 3px rgba(230, 198, 111, 0.2),
+    inset 0 -5px 0 rgba(0, 0, 0, 0.2);
+}
+
+.color:focus-visible {
+  outline: 2px solid var(--dorado);
+  outline-offset: 4px;
+}
+
+/* JUGADORES CONECTADOS */
+
+.titulo-jugadores {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.contador {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 25px;
+  min-height: 25px;
+  padding: 3px 7px;
+  border: 1px solid var(--borde);
+  border-radius: 30px;
+  color: var(--dorado);
+  background: rgba(230, 198, 111, 0.08);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.jugadores {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jugadores li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 11px 3px;
+  border-bottom: 1px solid rgba(230, 198, 111, 0.12);
+  color: var(--texto);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+  animation: entrar 0.25s ease-out;
+}
+
+.jugadores li:last-child {
+  border-bottom: 0;
+}
+
+.ficha {
+  width: 25px;
+  height: 25px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 -4px 0 rgba(0, 0, 0, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.yo {
+  display: inline-block;
+  margin-left: auto;
+  padding: 2px 7px;
+  border: 1px solid var(--borde);
+  border-radius: 20px;
+  color: var(--dorado);
+  font-size: 0.68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.vacio {
+  color: var(--secundario) !important;
+  font-size: 0.85rem !important;
+}
+
+.pie-juego {
+  margin-top: 25px;
+}
+
+/* ANIMACIONES */
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* RESPONSIVE: TABLET */
+
+@media (max-width: 950px) {
+  .juego {
+    grid-template-columns: minmax(0, 1fr) 270px;
+  }
+
+  .panel .tarjeta {
+    padding: 17px;
+  }
+}
+
+/* RESPONSIVE: MÓVIL */
+
+@media (max-width: 760px) {
   body {
-    padding: 0 14px 25px;
+    padding: 22px 14px;
   }
-  .contenedor {
-    padding-top: 28px;
+
+  .franja {
+    margin-bottom: 25px;
   }
-  .cabecera {
-    align-items: flex-start;
+
+  .contenedor,
+  .contenedor.ancho {
+    max-width: 100%;
   }
-  .cabecera h1 {
-    font-size: 30px;
-  }
-  .cabecera h1::after {
-    display: block;
-    margin-top: 7px;
-    font-size: 11px;
-  }
-  .peligro {
-    padding: 9px 11px;
-    font-size: 11px;
-  }
+
   .grid {
     grid-template-columns: 1fr;
-    gap: 16px;
   }
-  .tarjeta {
-    padding: 21px;
+
+  .tarjeta-google {
+    grid-column: auto;
   }
-  .descripcion {
-    min-height: auto;
+
+  .juego {
+    grid-template-columns: 1fr;
   }
-  .encabezado {
-    margin-bottom: 24px;
+
+  .cabecera {
+    align-items: flex-start;
+    padding: 17px;
   }
-  .subtitulo {
-    font-size: 13px;
+
+  .cabecera .peligro {
+    width: 100%;
   }
-  .pie {
-    line-height: 1.8;
+
+  .titulo-sala {
+    width: 100%;
+  }
+
+  .tarjeta-canvas {
+    padding: 12px;
+  }
+
+  .panel {
+    grid-template-columns: 1fr;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition: none !important;
+
+@media (max-width: 420px) {
+  .tarjeta {
+    padding: 19px;
+  }
+
+  .encabezado {
+    margin-bottom: 25px;
+  }
+
+  .tablero-logo {
+    width: 70px;
+    height: 70px;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  .titulo-sala h1 {
+    font-size: 1.8rem;
+  }
+
+  .pie {
+    flex-wrap: wrap;
+    font-size: 0.68rem;
   }
 }

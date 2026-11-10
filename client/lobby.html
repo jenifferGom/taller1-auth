@@ -3,41 +3,138 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Parqués — Lobby</title>
+  <title>GUARO ROYAL | Juego</title>
+
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
-  <div class="franja"><span></span><span></span><span></span><span></span></div>
 
-  <main class="contenedor">
-    <div class="cabecera">
-      <div>
-        <h1>Lobby</h1>
-        <span class="estado"><span id="punto" class="punto"></span><span id="estado">Conectando…</span></span>
+<body class="pagina-juego">
+
+  <div class="franja">
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+
+  <main class="contenedor ancho">
+
+    <header class="cabecera">
+
+      <div class="titulo-sala">
+        <div class="marca">EL JUEGO DE SIEMPRE</div>
+
+        <h1>GUARO <span>ROYAL</span></h1>
+
+        <span class="estado">
+          <span id="punto" class="punto"></span>
+          <span id="estado">Conectando…</span>
+        </span>
       </div>
-      <button id="logout" class="peligro">Cerrar sesión</button>
-    </div>
 
-    <div class="grid">
-      <section class="tarjeta">
-        <h2>Tu sesión</h2>
-        <div class="datos">
-          Usuario: <b id="yo"></b><br>
-          El token vence en: <b id="expira">—</b>
+      <button id="logout" class="boton peligro">
+        Cerrar sesión
+      </button>
+
+    </header>
+
+    <div class="juego">
+
+      <!-- TABLERO / MUNDO DEL JUEGO -->
+      <section class="tarjeta tarjeta-canvas">
+
+        <div class="encabezado-panel">
+          <div>
+            <span class="tipo-formulario">ZONA DE JUEGO</span>
+            <h2>El tablero</h2>
+          </div>
+
+          <span class="etiqueta-tablero">EN LÍNEA</span>
         </div>
-        <p id="actividad" class="actividad"></p>
+
+        <!-- Canvas original: no eliminar ni cambiar su ID -->
+        <canvas
+          id="mundo"
+          width="960"
+          height="600"
+          aria-label="Mundo del juego"
+        ></canvas>
+
+        <p class="ayuda">
+          Muévete con las <b>flechas</b> o con las teclas <b>W A S D</b>.
+        </p>
+
       </section>
 
-      <section class="tarjeta">
-        <h2>Jugadores en línea <span id="contador" class="contador"></span></h2>
-        <ul id="jugadores" class="jugadores">
-          <li class="vacio">Esperando al coordinador…</li>
-        </ul>
-      </section>
+      <!-- PANEL LATERAL -->
+      <aside class="panel">
+
+        <!-- INFORMACIÓN DE SESIÓN -->
+        <section class="tarjeta">
+
+          <span class="tipo-formulario">TU PERFIL</span>
+          <h2>Tu sesión</h2>
+
+          <div class="datos">
+            Usuario:
+            <b id="yo"></b>
+            <span id="insignia" class="insignia"></span>
+
+            <br>
+
+            La sesión vence en:
+            <b id="expira">—</b>
+          </div>
+
+          <p id="actividad" class="actividad"></p>
+
+        </section>
+
+        <!-- SELECTOR DE COLOR -->
+        <section class="tarjeta">
+
+          <span class="tipo-formulario">PERSONALIZACIÓN</span>
+          <h2>Tu color</h2>
+
+          <p class="descripcion">
+            Escoge el color de tu ficha para jugar.
+          </p>
+
+          <!-- lobby.js agrega aquí los botones de colores -->
+          <div id="colores" class="colores"></div>
+
+        </section>
+
+        <!-- JUGADORES CONECTADOS -->
+        <section class="tarjeta">
+
+          <span class="tipo-formulario">MULTIJUGADOR</span>
+
+          <h2 class="titulo-jugadores">
+            Jugadores en línea
+            <span id="contador" class="contador"></span>
+          </h2>
+
+          <ul id="jugadores" class="jugadores">
+            <li class="vacio">Esperando al servidor…</li>
+          </ul>
+
+        </section>
+
+      </aside>
+
     </div>
+
+    <footer class="pie pie-juego">
+      <span>GUARO ROYAL</span>
+      <span>•</span>
+      <span>Disfruta la partida</span>
+    </footer>
+
   </main>
 
   <script src="js/config.js"></script>
   <script src="js/lobby.js"></script>
+
 </body>
 </html>
