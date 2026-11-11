@@ -1,19 +1,23 @@
-# Parqués en línea — Taller 5 · Proyecto final, Parte II
+# Parqués en línea — Taller 6 · Proyecto final, Parte III
 
-**Sistemas Distribuidos · Universidad de Boyacá** · Integrantes: Andres Camilo Tibocha, Jenifer Nossa, Daniela Navarro, Francy Olmos
+**Sistemas Distribuidos · Universidad de Boyacá** · Integrantes:Daniela Navarro. Andres Tibocha, Jenifer Nossa, Francy Olmos
 
 Videojuego web multijugador en tiempo real. En la Parte I (Taller 4) los jugadores se
-identificaban y entraban a un lobby. En esta Parte II se agregan dos cosas grandes:
+identificaban y entraban a un lobby; en la Parte II (Taller 5) se agregó el juego en vivo con
+servidor autoritativo y el login con Google. En esta **Parte III (Taller 6)** el coordinador
+deja de ser un punto único de falla:
 
-- **El juego en vivo.** Los jugadores se mueven en un canvas y todos ven a todos en tiempo
-  real. **El servidor es la autoridad**: el cliente solo dice hacia dónde quiere ir, y el
-  servidor decide la posición.
-- **Login con Google.** Además del registro con usuario y contraseña, se puede entrar con una
-  cuenta de Google. Los dos métodos producen **el mismo JWT propio** y conviven en **una sola
-  tabla `users`**.
+- **Varios coordinadores en paralelo**, intercambiables, con el mismo estado del juego.
+- **El auth-service es también un directory service**: los coordinadores se registran con
+  heartbeats (`POST /heartbeat`) y los clientes preguntan a cuál conectarse (`GET /coordinator`,
+  el de menos jugadores). *Client-side load balancing*: el auth no proxea tráfico.
+- **Mesh entre coordinadores** por WebSocket (`GET /peers` + una conexión por par): lo que hace
+  Alice en el coordinador A lo ve Bob en el coordinador B.
+- **El cliente** hace login → `GET /coordinator` → WebSocket al coordinador asignado, **muestra
+  cuál es**, y si se cae **vuelve a pedir** coordinador en vez de reintentar el mismo.
 
-Además: una **característica extra replicada** (color del jugador + insignia del proveedor),
-**duración de sesión configurable en vivo** y **usernames que no distinguen mayúsculas**.
+Todo lo de las Partes I y II (login local y Google, servidor autoritativo a 20 Hz, color e
+insignia, duración de sesión en vivo) sigue igual. Las secciones 18 a 23 explican lo nuevo.
 
 ---
 
@@ -36,92 +40,88 @@ Además: una **característica extra replicada** (color del jugador + insignia d
 15. [Decisiones de diseño](#15-decisiones-de-diseño)
 16. [Limitaciones conocidas](#16-limitaciones-conocidas)
 17. [Solución de problemas](#17-solución-de-problemas)
+18. [Taller 6 — Directory service](#18-taller-6--directory-service-auth-service)
+19. [Taller 6 — Mesh de coordinadores](#19-taller-6--mesh-de-coordinadores)
+20. [Taller 6 — Cambios en el cliente](#20-taller-6--cambios-en-el-cliente)
+21. [Taller 6 — Cómo ejecutar tres coordinadores](#21-taller-6--cómo-ejecutar-tres-coordinadores)
+22. [Taller 6 — Guion de la sustentación](#22-taller-6--guion-de-la-sustentación)
+23. [Taller 6 — Decisiones de diseño y limitaciones](#23-taller-6--decisiones-de-diseño-y-limitaciones)
 
 ---
 
 ## 1. Arquitectura
 
-Tres procesos independientes, en puertos distintos, cada uno con su túnel de ngrok:
+Procesos independientes, cada uno en su puerto y con su túnel de ngrok:
 
 | Servicio | Puerto | Responsabilidad |
 |---|---|---|
-| **auth-service** | 4000 | Registro e inicio de sesión local, inicio de sesión con Google, emisión del JWT propio. Tiene su propia base SQLite (`users.db`). |
-| **coordinator** | 5000 | Recibe los WebSocket, valida el JWT, mantiene el estado de cada jugador, **ejecuta el game loop a 20 Hz** y envía el estado a todos. |
-| **client** | 3000 | Página de login (local + Google) y sala de juego (canvas). Solo envía intenciones y dibuja lo que manda el servidor. |
+| **auth-service** | 4000 | Registro e inicio de sesión (local y Google), emisión del JWT. **Directory service**: registro de coordinadores por heartbeat y asignación (`/heartbeat`, `/coordinator`, `/peers`). |
+| **coordinator** × N | 5001 en cada PC (jugadores en `/connect`, mesh en `/peer`) | Recibe los WebSocket de jugadores, valida el JWT, mantiene el estado **de todo el mundo** (jugadores locales y remotos), ejecuta el game loop a 20 Hz y se replica con los demás coordinadores. |
+| **client** | 3000 | Login, pide coordinador al auth, canvas del juego. Solo envía intenciones y dibuja lo que manda su coordinador. |
 
 ```
-                              ┌─────────────────────────────────┐
-                              │       Navegador (client)        │
-                              │  login.html      lobby.html     │
-                              │  (local+Google)  (canvas)       │
-                              └───┬──────────┬───────────┬──────┘
-        (1) botón de Google       │          │           │ (4) WebSocket /connect?token=JWT
-            ← ID Token  ┌─────────┘          │           │     → intent {dir}, extras_update
-        ┌───────────────┴──┐   (2) POST /register, /login │     ← welcome, state (20/s)
-        │      Google      │       POST /auth/google      │
-        │ (claves públicas)│   (3) ← { token: JWT propio }│
-        └────────▲─────────┘          │                   │
-                 │ verifyIdToken      ▼                   ▼
-┌────────────────┴───────────────────────┐   ┌──────────────────────────────────────┐
-│ auth-service                     :4000 │   │ coordinator                    :5000 │
-│ · tabla users (provider local|google)  │   │ · verifica el JWT en el "upgrade"    │
-│ · bcryptjs (≥10 rounds)                │   │ · Map userId → {x, y, intent, extras}│
-│ · google-auth-library                  │◄──│ · game loop 20 Hz → "state" a todos  │
-│ · JWT {userId, username, provider}     │   │ · consulta GET /session-policy (3 s) │
-│ · GET /session-policy                  │   └──────────────────────────────────────┘
-└────────────────────────────────────────┘
-          Ambos tienen la MISMA JWT_SECRET (≥ 32 caracteres) en su .env.
+                    ┌──────────────── auth-service :4000 ────────────────┐
+                    │  /register /login /auth/google   (Partes I y II)   │
+                    │  /heartbeat  /coordinator  /peers (directorio)     │
+                    └───▲──────────────▲──────────────────▲──────────────┘
+          POST /heartbeat (cada 2 s) │ GET /peers        │ GET /coordinator
+         ┌───────────────┴──┐   ┌─────┴────────┐          │ (después del login)
+         │                  │   │              │          │
+   ┌─────┴──────┐  mesh WS ┌─┴──┴───────┐  mesh WS  ┌─────┴──────┐
+   │  coord-a   │◄────────►│  coord-b   │◄─────────►│  coord-c   │
+   │ :5001      │◄─────────┴────────────┴──────────►│ :5001      │
+   └─────▲──────┘     (una conexión por par; el id menor la inicia)   └─────▲──────┘
+         │ WS jugadores                  │ WS jugadores                    │
+     Alice, ...                       Bob, ...                          Carol, ...
 ```
 
 ```mermaid
 sequenceDiagram
     participant N as Navegador
-    participant G as Google
-    participant A as auth-service
-    participant C as coordinator
-    N->>G: clic en "Iniciar sesión con Google"
-    G-->>N: ID Token (JWT firmado por Google)
-    N->>A: POST /auth/google { idToken }
-    A->>G: verifyIdToken (firma, aud, exp)
-    alt primer acceso
-        A-->>N: 409 username_required
-        N->>A: POST /auth/google { idToken, username }
-    end
-    A-->>N: 200 { token (JWT propio), username }
-    N->>C: WebSocket /connect?token=JWT
-    C-->>N: welcome { you, world }
+    participant A as auth-service (directorio)
+    participant C1 as coord-a
+    participant C2 as coord-b
+    C1->>A: POST /heartbeat (cada 2 s)
+    C2->>A: POST /heartbeat (cada 2 s)
+    C1->>A: GET /peers
+    C1->>C2: WS hello (coord-a < coord-b: inicia a)
+    C2-->>C1: hello
+    N->>A: POST /login → JWT
+    N->>A: GET /coordinator
+    A-->>N: { coordinatorId: coord-b, publicUrl }
+    N->>C2: WebSocket /connect?token=JWT
+    C2-->>N: welcome { coordinatorId: coord-b, ... }
+    C2->>C1: player_joined
     loop 20 veces por segundo
-        N->>C: intent { dir: {x, y} }   (solo cuando cambia)
-        C-->>N: state { players: [{x, y, extras, badge}] }
+        N->>C2: intent (solo cuando cambia)
+        C2->>C1: intent_replicate
+        C2-->>N: state (todos los jugadores del mundo)
+        C1-->>N: (los clientes de coord-a reciben el suyo)
     end
 ```
-
----
 
 ## 2. Estructura del repositorio
 
 ```
 taller1-auth/
-├── auth-service/                 Autenticación (HTTP :4000)
-│   ├── index.js                  Tabla users + migración, /register, /login, /auth/google, /session-policy
+├── auth-service/                 Autenticación + directorio (HTTP :4000)
+│   ├── index.js                  users, /register, /login, /auth/google, /session-policy,
+│   │                             /heartbeat, /coordinator, /peers, /coordinators
 │   ├── test.js                   Pruebas automáticas (npm test)
-│   ├── package.json
 │   └── .env.example
-├── coordinator/                  Juego (HTTP + WebSocket :5000)
-│   ├── index.js                  verifyToken, addPlayer, game loop, intent, extras_update
-│   ├── test.js                   Pruebas del juego (npm test)
-│   ├── package.json
-│   └── .env.example
+├── coordinator/                  Juego + mesh (un puerto: /connect jugadores, /peer coordinadores)
+│   ├── index.js                  verifyToken, game loop, mesh, heartbeat, descubrimiento
+│   ├── test.js                   Pruebas del juego, un coordinador (npm test)
+│   ├── mesh-test.js              Pruebas del mesh, 3 coordinadores (npm run test:mesh)
+│   ├── .env.example              UN solo archivo para los 3 coordinadores (se copia como .env)
+│   └── package.json              start:a · start:b · start:c
 ├── client/                       Cliente web (HTML + JS plano, :3000)
-│   ├── login.html / js/login.js  Registro, login local y botón de Google
-│   ├── lobby.html / js/lobby.js  Canvas, teclado, color, lastState
-│   ├── js/config.js              ÚNICO lugar con AUTH_URL y COORDINATOR_WS
-│   ├── css/styles.css
-│   ├── server.js                 Express mínimo que sirve los archivos
-│   ├── package.json
-│   └── .env.example
-├── docs/taller1.postman_collection.json   Colección para Thunder Client / Postman
-├── .gitignore                    node_modules/, *.db, .env
+│   ├── login.html / js/login.js
+│   ├── lobby.html / js/lobby.js  GET /coordinator, reconexión, "Coordinador: coord-x"
+│   ├── js/config.js              ÚNICO lugar con una URL: AUTH_URL
+│   └── css/styles.css
+├── docs/taller1.postman_collection.json
+├── .gitignore                    node_modules/, *.db, .env, .env.*
 └── README.md
 ```
 
@@ -366,6 +366,9 @@ de `30s` a `1h`, los tokens de 30 s siguen venciendo a los 30 s.
 
 ## 11. Instalación y ejecución
 
+> Para levantar **tres coordinadores** y hacer la demo del Taller 6, ver la sección
+> [21](#21-taller-6--cómo-ejecutar-tres-coordinadores). Esta sección es lo básico.
+
 ### Requisitos
 - **Node.js 22.5 o superior** (recomendado 22 LTS): `node -v`.
 - ngrok con cuenta (`ngrok config add-authtoken TU_TOKEN`).
@@ -381,14 +384,14 @@ cd client       ; npm install ; cd ..
 
 Ninguna dependencia necesita compilarse, así que no hace falta Python ni Visual Studio Build Tools.
 
-### Archivos `.env` (copiar desde `.env.example`; nunca se suben al repositorio)
+### Archivos `.env` (nunca se suben al repositorio)
 
 | Archivo | Variables |
 |---|---|
-| `auth-service/.env` | `PORT=4000`, `JWT_SECRET` (≥ 32, igual al coordinador), `JWT_EXPIRES_IN=1h`, `GOOGLE_CLIENT_ID`, `BCRYPT_ROUNDS=10`, `DB_PATH=users.db` |
-| `coordinator/.env` | `PORT=5000`, `JWT_SECRET` (la misma), `AUTH_URL` (URL del auth, para la duración en vivo), `HEARTBEAT_MS=30000` |
+| `auth-service/.env` | `PORT=4000`, `JWT_SECRET` (≥ 32, igual en los coordinadores), `JWT_EXPIRES_IN=1h`, `GOOGLE_CLIENT_ID`, `BCRYPT_ROUNDS=10`, `DB_PATH=users.db`, y opcionales del directorio: `COORDINATOR_TTL_MS=6000`, `PENDING_TTL_MS=5000` |
+| `coordinator/.env` (el mismo formato en cada PC) | `JWT_SECRET`, `AUTH_URL`, `HEARTBEAT_MS`, opcional `MESH_SECRET`, `COORD_PORT` (puerto local) y `COORD_PUBLIC_URL` (la URL de ngrok de **ese** PC; la usan jugadores **y** mesh). El ID sale del comando: `npm run start:a` / `:b` / `:c` |
 | `client/.env` | `PORT=3000` |
-| `client/js/config.js` | `AUTH_URL` y `COORDINATOR_WS` (las URLs que usa el navegador) |
+| `client/js/config.js` | `AUTH_URL` (la única URL que usa el navegador) |
 
 Generar una `JWT_SECRET`:
 ```powershell
@@ -398,27 +401,25 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### Orden de arranque (una terminal por servicio)
 
 ```powershell
-# 1. auth-service
-cd auth-service ; npm start   # → Auth service en puerto 4000 (tokens de 1h, base users.db)
-# 2. coordinator
-cd coordinator  ; npm start   # → Coordinador en puerto 5000 (... juego a 20 Hz ...)
-# 3. client
-cd client       ; npm start   # → Cliente en http://localhost:3000
+cd auth-service ; npm start        # 1. auth + directorio  → :4000
+cd coordinator  ; npm run start:a  # 2. coord-a (PC 1)    → :5001 (jugadores /connect, mesh /peer)
+cd coordinator  ; npm run start:b  #    coord-b (PC 2)    → :5001 en su equipo
+cd coordinator  ; npm run start:c  #    coord-c (PC 3)    → :5001 en su equipo
+cd client       ; npm start        # 3. cliente            → http://localhost:3000
 ```
 
-Abrir **http://localhost:3000**. Para cerrar un servicio: `Ctrl+C` en su terminal; para
-volver a ejecutarlo: `npm start`.
+Abrir **http://localhost:3000**. Para cerrar un servicio: `Ctrl+C`.
 
 ### Comprobar que cada servicio funciona
-- Auth: `http://localhost:4000/health` → `{"status":"ok",...}`
-- Coordinador: `http://localhost:5000/health` → `{"status":"ok", "players": N, "sessionPolicy": "1h"}`
+- Auth: `http://localhost:4000/health` y `http://localhost:4000/coordinators` (coordinadores vivos y su carga)
+- Coordinador: `http://localhost:5001/health` → `{ coordinatorId, connectedPlayers, worldPlayers, peers: [...] }`; `http://localhost:5001/mesh`
 - Cliente: `http://localhost:3000` → página de login
 
 ### Dos jugadores a la vez
 - **Dos pestañas del mismo navegador, con usuarios distintos:** funciona, porque la sesión se
   guarda en `sessionStorage`, que es independiente por pestaña.
-- **El mismo usuario en dos lugares:** se cierra la conexión anterior (4002).
-- También sirve una ventana de incógnito u otro navegador.
+- **El mismo usuario en dos lugares** (aunque sea en dos coordinadores distintos): se cierra la
+  conexión anterior (4002).
 
 ---
 
@@ -442,30 +443,39 @@ El cliente obtiene el Client ID con `GET /auth/google/config`, así que no hay q
 
 ## 13. Despliegue con ngrok
 
-Cada servicio en su propio túnel, en el equipo donde corre ese servicio:
+Cada servicio que el navegador necesita alcanzar tiene su propio túnel:
 
 ```powershell
 ngrok http 4000   # auth         → https://AAAA.ngrok-free.dev
-ngrok http 5000   # coordinador  → https://BBBB.ngrok-free.dev
-ngrok http 3000   # cliente      → https://CCCC.ngrok-free.dev
+ngrok http 5001   # coord-a (PC 1) → https://BBBB.ngrok-free.dev
+ngrok http 5001   # coord-b (PC 2) → https://CCCC.ngrok-free.dev
+ngrok http 5001   # coord-c (PC 3) → https://DDDD.ngrok-free.dev
+ngrok http 3000   # cliente      → https://EEEE.ngrok-free.dev
 ```
 
+> El plan gratuito de ngrok limita el número de túneles/sesiones simultáneas. Si no alcanzan:
+> `ngrok.yml` con varios túneles en una sola sesión (`ngrok start --all`), o un túnel menos
+> sirviendo el cliente desde el mismo equipo (`http://localhost:3000`) y solo exponer auth y coordinadores.
+
 Después:
-1. `client/js/config.js`:
-   ```js
-   const AUTH_URL       = 'https://AAAA.ngrok-free.dev';
-   const COORDINATOR_WS = 'wss://BBBB.ngrok-free.dev';   // wss://, no ws://
-   ```
-2. `coordinator/.env`: `AUTH_URL=https://AAAA.ngrok-free.dev` (y reiniciar el coordinador).
-3. Google Cloud: la URL del **cliente** (`https://CCCC...`) en "Orígenes de JavaScript autorizados".
-4. En cada navegador, abrir una vez `https://BBBB.ngrok-free.dev/health` y pulsar
-   **Visit Site** (el aviso de ngrok del plan gratuito bloquea el WebSocket hasta hacerlo).
+1. `client/js/config.js`: `const AUTH_URL = 'https://AAAA.ngrok-free.dev';`
+2. En el `coordinator/.env` de **cada PC**: `COORD_PUBLIC_URL=wss://…` con la URL de **su** túnel
+   (**`wss://`**: PC 1 `wss://BBBB…`, PC 2 `wss://CCCC…`, PC 3 `wss://DDDD…`) y
+   `AUTH_URL=https://AAAA.ngrok-free.dev`. El mesh usa **esa misma URL** (`wss://BBBB…/peer`), así que
+   **no hace falta un túnel extra** para los coordinadores.
+3. Google Cloud: la URL del **cliente** en "Orígenes de JavaScript autorizados".
+4. Reiniciar los coordinadores (leen el `.env` al arrancar).
+5. En cada navegador, abrir una vez `https://BBBB.ngrok-free.dev/health` (y los de los otros
+   coordinadores) y pulsar **Visit Site**: el aviso de ngrok del plan gratuito bloquea el
+   WebSocket hasta hacerlo. Con varios coordinadores hay que hacerlo con **cada uno**.
 
 URLs usadas en la entrega:
 ```
-Cliente:      https://__________________.ngrok-free.dev   (ngrok http 3000)
-Auth:         https://__________________.ngrok-free.dev   (ngrok http 4000)
-Coordinador:  wss://___________________.ngrok-free.dev    (ngrok http 5000)
+Cliente:  https://__________________.ngrok-free.dev   (ngrok http 3000)
+Auth:     https://__________________.ngrok-free.dev   (ngrok http 4000)
+coord-a:  wss://___________________.ngrok-free.dev    (ngrok http 5001)
+coord-b:  wss://___________________.ngrok-free.dev    (ngrok http 5002)
+coord-c:  wss://___________________.ngrok-free.dev    (ngrok http 5003)
 ```
 
 ---
@@ -506,6 +516,13 @@ mayúsculas, contraseña incorrecta 401, usuario inexistente 401, Client ID, Goo
 | Token alterado | cierre 4001 |
 
 Resultados reales: **_(pegar aquí la salida de `npm test` de cada servicio)_**.
+
+**`coordinator/mesh-test.js` (19 pruebas, Taller 6)** — con el auth y tres coordinadores
+encendidos (`npm run test:mesh`): `/peers` lista los tres, `POST /heartbeat` inválido → 400, 4
+clientes pedidos a `GET /coordinator` se reparten entre los tres, Alice en un coordinador y Bob en
+otro se ven y se mueven en vivo en ambos sentidos (posición coincide ±15 px), el color se replica,
+la misma cuenta en dos coordinadores cierra la vieja con 4002 y no queda duplicada, y al
+desconectarse desaparece en el otro coordinador.
 
 ### Pruebas manuales en el navegador
 1. **Juego:** dos pestañas (`alice` y `bob_google`); mover con flechas/WASD en una y ver el
@@ -574,8 +591,8 @@ trae todos estos casos.
 
 ## 16. Limitaciones conocidas
 
-- El estado del juego vive **en memoria** del coordinador: si se reinicia, los jugadores se
-  reconectan en posiciones nuevas (la replicación entre coordinadores es la siguiente parte).
+- El estado del juego vive **en memoria**. Con el mesh, si un coordinador muere sus jugadores
+  se reconectan a otro y **reaparecen en una posición nueva** (ver sección 23).
 - El cliente dibuja exactamente el último `state` (20 por segundo) sin interpolar; con mucha
   latencia el movimiento puede verse a saltos.
 - Un token ya emitido no se puede alargar; los cambios de duración en vivo solo pueden acortarlo.
@@ -599,3 +616,257 @@ trae todos estos casos.
 | `[sesión] No se pudo consultar …/session-policy` | `AUTH_URL` del coordinador incorrecta o auth apagado | Corregir `AUTH_URL`; el juego funciona igual |
 | `Cannot find module` | Faltan dependencias | `npm install` en esa carpeta |
 | `EADDRINUSE` | El puerto ya está en uso | Cerrar la otra terminal con `Ctrl+C` |
+
+---
+
+## 18. Taller 6 — Directory service (auth-service)
+
+El auth-service guarda **en memoria** un `Map<coordinatorId, { ...info, lastSeen }>`. Un
+coordinador sin heartbeat en los últimos **6 s** (3 ciclos de 2 s, `COORDINATOR_TTL_MS`) se
+considera muerto y se descarta (un barrido cada 1 s lo muestra en la consola:
+`[directory] coord-c sin heartbeat hace 6.1 s: se descarta`).
+
+| Método | Ruta | Quién la llama | Respuesta |
+|---|---|---|---|
+| POST | `/heartbeat` | cada coordinador, cada 2 s | **200** `{ ok: true }` · **400** `invalid_heartbeat` si faltan o son inválidos `coordinatorId`, `publicUrl`, `peerUrl` (ws:// o wss://), `connectedPlayers` (entero ≥ 0) o `uptime` |
+| GET | `/coordinator` | el cliente, después del login | **200** `{ coordinatorId, publicUrl }` del vivo con menos carga · **503** `{ error: "no_coordinators_available" }` si no hay ninguno |
+| GET | `/peers` | los coordinadores, al arrancar y cada 2 s | `{ peers: [{ coordinatorId, peerUrl }] }` (los vivos; cada coordinador se filtra a sí mismo) |
+| GET | `/coordinators` | depuración | todos los registrados con carga, `alive` y `lastSeenMsAgo` |
+
+**Estrategia de selección.** Menor `connectedPlayers` entre los vivos; en empate, el primero.
+Hay un detalle práctico: `connectedPlayers` solo se actualiza cada 2 s, así que 4 clientes que
+piden coordinador en el mismo segundo verían la misma carga y los 4 irían al mismo. Por eso el
+auth suma a cada coordinador las **asignaciones recientes** que todavía no aparecen en su
+heartbeat. Cuando el coordinador reporta más jugadores, esas asignaciones se descuentan (ya están
+en `connectedPlayers`, así no se cuentan dos veces); si el cliente nunca llega, la asignación
+vence a los `PENDING_TTL_MS` (5 s). Además, el coordinador envía un heartbeat **en cuanto** entra o
+sale un jugador, sin esperar los 2 s. La métrica sigue siendo `connectedPlayers`.
+
+**Rebalanceo automático (sin recargar).** Si un coordinador le lleva **2 o más** jugadores al menos
+cargado (por ejemplo, porque se encendió uno nuevo), la respuesta de su `POST /heartbeat` trae
+`{ "ok": true, "rebalance": N }` con N = la mitad de la diferencia. El coordinador elige a sus N
+jugadores más recientes y les envía `{"type":"rebalance"}`. Cada cliente pide `GET /coordinator`, abre
+el WebSocket nuevo **sin recargar la página**, y al entrar allá el `player_joined` del mesh hace que
+el coordinador viejo cierre la conexión anterior (4002), conservando posición y color. Solo se le
+ordena mover al más cargado, y con una pausa de 4 s, para que no se muevan todos a la vez.
+Ejemplo medido: 6 jugadores en un coordinador, se encienden 2 más → **2 / 2 / 2** en unos segundos.
+Se desactiva con `AUTO_REBALANCE=false` en `auth-service/.env`.
+
+**Cambio de coordinador sin saltos ni cambio de color.** Antes de avisar `rebalance`, el coordinador
+viejo detiene al jugador y envía por el mesh (`positions_sync`) su posición, dirección y **color**
+exactos; el nuevo ya lo tiene en el mismo punto cuando el cliente llega. El `positions_sync`
+periódico (cada 1 s) también lleva el color, y si a un coordinador le falta la copia de un jugador,
+la crea con esos datos. Solo se mueve a clientes que saben cambiarse (el navegador manda `seq`;
+`wscat` no, y nunca se le mueve).
+
+**Si se cae un coordinador, sus jugadores vuelven casi al instante** (medido: 120–180 ms):
+- El cliente reconecta **de inmediato** (sin esperar 1 s) y pide `GET /coordinator?exclude=caido`:
+  el auth no le devuelve el que se acaba de caer aunque aún no hayan pasado los 6 s. Además, entre
+  los vivos prefiere los que mandaron heartbeat hace ≤ 3 s.
+- Los demás coordinadores **no borran** a esos jugadores: los dejan quietos en su sitio, con su
+  color ("fantasmas"), hasta 8 s (`GHOST_MS`). Si vuelven en otro coordinador, siguen ahí mismo; si
+  no, se quitan. Así nadie los ve desaparecer y reaparecer.
+- Cada conexión lleva `seq` (la hora en que el navegador la abrió). Si por una carrera la misma
+  cuenta queda en dos coordinadores, todos se quedan con la **más nueva** (la otra recibe 4002). En la consola del auth se ve la cuenta
+(`coord-a=0+1 coord-b=0+0` = jugadores + pendientes).
+
+Esto es **client-side load balancing**: el auth no proxea tráfico, solo le dice al cliente a
+dónde conectarse.
+
+Probar con curl:
+```powershell
+curl http://localhost:4000/peers
+curl http://localhost:4000/coordinator
+curl http://localhost:4000/coordinators
+curl -X POST http://localhost:4000/heartbeat -H "Content-Type: application/json" -d "{\"coordinatorId\":\"coord-z\"}"   # → 400
+```
+
+---
+
+## 19. Taller 6 — Mesh de coordinadores
+
+Cada coordinador abre **un** servidor y una sola URL pública (`COORD_PUBLIC_URL`): los jugadores entran
+por `/connect?token=` y los otros coordinadores por `/peer` (el `peerUrl` que se publica en el heartbeat
+es `COORD_PUBLIC_URL + /peer`). El PDF permite "el mismo puerto u otro"; usamos el mismo para que cada
+PC necesite **un solo túnel de ngrok**. Cada `PEER_POLL_MS` (2 s) llama `GET /peers`.
+
+### Una sola conexión por par
+- El coordinador con el `coordinatorId` **menor** (orden lexicográfico) inicia; el mayor espera.
+  Con `coord-a < coord-b < coord-c`: a→b, a→c, b→c.
+- Si llega una conexión que viola la regla y ya hay una, se cierra la **nueva** (código 4010).
+  Si el menor se reinicia y llega su conexión nueva mientras la vieja sigue "viva" en el otro
+  lado, la nueva **reemplaza** a la vieja.
+- Si un peer desaparece de `/peers` durante dos consultas seguidas, se cierra su conexión.
+  Además hay ping/pong cada 5 s para detectar peers congelados sin `close`.
+
+### Mensajes
+Todos llevan `origin` (el coordinador que los originó). **Nunca se retransmiten**: cada
+coordinador manda directo a todos los demás, así que no hay bucles. Si llega un mensaje cuyo
+`origin` es el propio coordinador se descarta, y si el `origin` no coincide con el dueño de la
+conexión también (nadie puede hablar en nombre de otro).
+
+| Mensaje | Cuándo | Qué hace el que lo recibe |
+|---|---|---|
+| `hello { coordinatorId }` | primer mensaje en ambos sentidos | registra al peer y le manda la foto de sus jugadores locales |
+| `intent_replicate { origin, userId, intent }` | un cliente local cambió de dirección | aplica el intent a **su copia** del jugador |
+| `extras_replicate { origin, userId, extras }` | un cliente local cambió su color | valida (paleta) y guarda |
+| `player_joined { origin, userId, username, x, y, … }` | un cliente se conecta | crea el jugador remoto; si el mismo usuario estaba conectado **aquí**, cierra esa conexión (4002) |
+| `player_left { origin, userId }` | un cliente se desconecta | lo elimina (solo si sigue siendo de ese `origin`) |
+| `positions_sync { origin, players:[{userId,x,y,intent}] }` | cada 1 s (**extra**, ver 23) | corrige la deriva de los jugadores de ese origen |
+
+Un `player_joined` extra lleva `provider`, `extras`, `intent` y, en la foto inicial, `sync: true`
+(no se anuncia "entró al juego" otra vez).
+
+### Game loop
+Cada coordinador, a 20 Hz: (1) aplica los intents de **todos** los jugadores del mundo, locales
+y remotos; (2) hace broadcast del `state` **solo a sus clientes locales** (nunca a peers). Cada
+cliente recibe únicamente el `state` de su coordinador, pero ese `state` incluye a todo el mundo
+(y `coordinator` por jugador, que la UI muestra en la lista).
+
+### Coordinadores que entran, salen o mueren
+- **Entra uno nuevo:** se registra por heartbeat → los demás lo ven en `/peers` (≤ 2 s) → el
+  menor abre la conexión → ambos se mandan `hello` y la foto de sus jugadores locales. El nuevo
+  queda con el mismo mundo.
+- **Muere uno (Ctrl+C o caída):** sus conexiones de mesh se cierran → cada peer borra a sus
+  jugadores remotos y lo avisa a sus clientes. Sus clientes, desconectados, piden `/coordinator`
+  de nuevo. Pasados 6 s sin heartbeat el auth lo descarta.
+- **Se pierde solo el mesh (no el coordinador):** al reconectar, el `hello` + la foto reemplazan
+  cualquier estado viejo; los fantasmas de esa conexión se borran antes.
+
+---
+
+## 20. Taller 6 — Cambios en el cliente
+
+`client/js/lobby.js`, sección 6:
+
+1. Tras el login, `GET {AUTH_URL}/coordinator` → `{ coordinatorId, publicUrl }`.
+2. Abre `WebSocket(publicUrl + '/connect?token=…')`.
+3. **Muestra el coordinador:** en la cabecera (`Coordinador: coord-b`), en el panel
+   "Tu sesión" (`Coordinador:` y `Tick: 20 Hz`) y una etiqueta con el coordinador de cada
+   jugador en la lista.
+4. **Si el WebSocket se cae no reconecta al mismo:** vuelve al paso 1. Cada intento espera 1 s;
+   si el socket no abre en 4 s se descarta y se pregunta otra vez (un coordinador recién
+   muerto puede seguir unos segundos en el directorio). Con `503` reintenta cada segundo.
+   Mientras tanto la UI dice "Se perdió coord-a. Buscando otro coordinador…".
+5. Los errores de **sesión** (token vencido o inválido `4001`, cuenta abierta en otro lado
+   `4002`) siguen llevando al login, como antes. Solo las caídas del coordinador reconectan.
+6. Al reconectar se reenvía la tecla que siga apretada.
+
+---
+
+## 21. Taller 6 — Cómo ejecutar tres coordinadores
+
+Tres coordinadores, **un solo código**, normalmente **uno por computador**. Cada PC tiene un
+`coordinator/.env` con la misma forma; solo cambia `COORD_PUBLIC_URL` (la URL de ngrok de ese PC).
+El ID sale del comando: `npm run start:a` ejecuta `node index.js coord-a`. Si no existe:
+`copy .env.example .env`.
+
+**Nombres.** Además de `start:a` / `:b` / `:c` se puede usar cualquier nombre:
+`npm start -- pc-danna` (letras, números, `.` `_` `-`; máx. 64). El directorio **no deja dos
+coordinadores vivos con el mismo nombre, sin importar mayúsculas** (`Coord-A` = `coord-a`): el
+segundo recibe `409 coordinator_id_taken` en su heartbeat y se apaga con un mensaje claro. El mismo
+coordinador sí puede reiniciarse enseguida (misma URL).
+
+**Si el mesh se conecta y se pierde una y otra vez**, el log dice el motivo del cierre:
+`1006` = se cayó la red o el túnel; `4010 duplicate connection` / `replaced` = hay otro proceso con
+ese nombre o un coordinador viejo; `1000 left directory` = el otro no lo ve en `/peers` (revisar que
+los dos usen el **mismo** `AUTH_URL`). La consola del otro coordinador muestra su versión del motivo.
+
+```env
+JWT_SECRET=...                                   # igual en todos y en el auth
+AUTH_URL=https://AAAA.ngrok-free.dev
+COORD_PORT=5001
+COORD_PUBLIC_URL=wss://BBBB.ngrok-free.dev       # la de ESTE computador
+```
+
+**Los tres en un solo PC (para probar):** el `.env` da el puerto 5001, así que los otros dos se
+arrancan cambiando las variables en la terminal (tienen prioridad sobre el `.env`):
+
+```powershell
+cd coordinator ; npm run start:a
+cd coordinator ; $env:COORD_PORT=5002; $env:COORD_PUBLIC_URL="ws://localhost:5002"; npm run start:b
+cd coordinator ; $env:COORD_PORT=5003; $env:COORD_PUBLIC_URL="ws://localhost:5003"; npm run start:c
+```
+
+```powershell
+# Terminal 1
+cd auth-service ; npm start
+# Terminales 2, 3 y 4
+cd coordinator ; npm run start:a
+cd coordinator ; npm run start:b
+cd coordinator ; npm run start:c
+# Terminal 5
+cd client ; npm start
+```
+
+Qué se debe ver:
+```
+[a] [directorio] … / [mesh] ✔ conectado con coord-b (yo inicié). Peers: coord-b
+[a] [mesh] ✔ conectado con coord-c (yo inicié). Peers: coord-b, coord-c
+[b] [mesh] ✔ conectado con coord-a (él inició). Peers: coord-a  → luego coord-c (yo inicié)
+auth: [directory] coord-a registrado … Coordinadores vivos: coord-a, coord-b, coord-c
+```
+
+Pruebas automáticas del mesh: `cd coordinator ; npm run test:mesh`.
+
+---
+
+## 22. Taller 6 — Guion de la sustentación
+
+| # | Qué mostrar | Cómo |
+|---|---|---|
+| 1 | **Tres coordinadores en `/peers`** (3 min) | Levantar los tres y abrir `…/peers` del auth. En la consola de cada uno: `[mesh] ✔ conectado con …`. Extra: `…/coordinators` y `http://localhost:5001/mesh`. |
+| 2 | **4 clientes repartidos** (3 min) | Cuatro pestañas (usuarios distintos). Cada una muestra su `Coordinador: …`; en la consola del auth se ve la carga (`coord-a=0+1 …`). Quedan 2-1-1. |
+| 3 | **Alice en coord-A, Bob en coord-B** (2 min) | Dos pestañas: la cabecera dice a qué coordinador está cada una. Mover a Alice → Bob la ve; mover a Bob → Alice lo ve. La lista de jugadores muestra el coordinador de cada uno. |
+| 4 | **Matar un coordinador** (4 min) | `Ctrl+C` en uno. (a) sus clientes dicen "Buscando otro coordinador…"; (b) tras 6 s, `…/peers` ya no lo lista y el auth imprime `[directory] coord-x … se descarta`; (c) los clientes quedan conectados a los vivos y siguen viéndose. Los otros coordinadores imprimen `[mesh] ✘ se perdió coord-x`. |
+| 5 | **Preguntas** (3 min) | Ver sección 23: bucles, conexión duplicada, consistencia, `positions_sync`. |
+
+Antes de empezar con ngrok: abrir una vez cada URL de coordinador (`…/health`) → **Visit Site**.
+
+---
+
+## 23. Taller 6 — Decisiones de diseño y limitaciones
+
+**Los problemas que el PDF anuncia, y cómo se resolvieron**
+
+| Problema | Solución |
+|---|---|
+| **Descubrimiento de pares** | `GET /peers` al arrancar y cada 2 s; cualquier coordinador que aparezca se conecta solo. |
+| **Bucles infinitos** | `origin` en todos los mensajes, **sin retransmisión** (cada uno manda directo a todos) y se descarta lo que traiga mi propio `origin` o un `origin` ajeno a la conexión. |
+| **Conexión duplicada** | Solo inicia el `coordinatorId` menor; la que llega a contramano se cierra (4010). |
+| **Consistencia** | Ver abajo. |
+| **Coordinadores que entran y salen** | Foto de jugadores locales en el `hello`; borrado de jugadores remotos al perder la conexión; el auth descarta al muerto a los 6 s. |
+
+**Consistencia.** Cada coordinador aplica los mismos intents con su propio reloj, así que las
+copias de un jugador remoto se pueden separar unos píxeles (latencia de red × 200 px/s). Para
+que no se acumule, el coordinador **dueño** de cada jugador manda `positions_sync` una vez por
+segundo y los demás adoptan esa posición. Esto **no está en el PDF**: es un mensaje extra que
+se puede quitar (`SYNC_MS`) para ver la deriva. Solo el dueño puede modificar a un jugador:
+un `intent_replicate` de otro `origin` se ignora.
+
+**Otras decisiones**
+- **Mismo usuario en dos coordinadores:** gana la conexión **nueva**, igual que en el Taller 5. El
+  `player_joined` hace que el coordinador viejo cierre su socket con 4002 y deje al jugador como
+  remoto, conservando posición y color.
+- **Carga pendiente** en `/coordinator` (sección 18): evita que 4 clientes simultáneos vean la
+  misma carga vieja.
+- **Mesh por la misma URL que los jugadores** (ruta `/peer`; el PDF permite "el mismo puerto u
+  otro"). Así cada computador expone un solo túnel de ngrok y el `.env` solo necesita
+  `COORD_PUBLIC_URL`. El upgrade separa el tráfico: `/connect` = jugadores, `/peer` = coordinadores.
+- **`MESH_SECRET` (opcional):** si se define, el `hello` debe traerlo; evita que un tercero que
+  conozca el `peerUrl` se meta al mesh. Ponerlo igual en todos los coordinadores.
+- **Un mensaje del mesh nunca se confía:** se valida (`Math.sign`, paleta de colores, límites del
+  mundo) igual que lo que manda un cliente.
+
+**Limitaciones**
+- Estado **en memoria**: si muere un coordinador, sus jugadores reaparecen en una posición nueva
+  al reconectarse a otro; si mueren todos, se pierde el mundo.
+- El auth-service es el **único directorio**: si cae, los coordinadores ya conectados siguen
+  jugando entre sí y sus clientes también, pero no se pueden asignar clientes nuevos ni
+  descubrir coordinadores nuevos hasta que vuelva (los heartbeats lo repueblan en ≤ 2 s).
+- `POST /heartbeat` y `GET /peers` son públicos (como pide el PDF). Quien alcance el auth podría
+  registrar un coordinador falso; el `MESH_SECRET` protege el mesh, no el directorio.
+- Si el mismo usuario se conecta en el mismo instante a dos coordinadores, ambos se pueden
+  cerrar mutuamente (hay que volver a entrar).
+- Si el reloj de un coordinador se desincroniza mucho no afecta al juego (usa `dt` local), pero sí
+  la caducidad del token, que ya se compensa con el reloj del auth.
