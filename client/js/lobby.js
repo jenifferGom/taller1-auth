@@ -1,9 +1,12 @@
-// COORDINATOR_WS viene de js/config.js
+// AUTH_URL viene de js/config.js. La URL del coordinador YA NO está fija: se le pregunta al auth (GET /coordinator).
 //
 // Este archivo NO calcula posiciones. Solo:
 //   1. envía al servidor hacia dónde quiere moverse el jugador (mensaje "intent"),
 //   2. guarda el último estado que manda el servidor (lastState) y lo dibuja.
 // La posición oficial de cada jugador la decide el coordinador.
+
+// Flujo (Taller 6): login → GET /coordinator → WebSocket al publicUrl que diga el auth.
+// Si el WebSocket se cae NO se reintenta el mismo coordinador: se vuelve a pedir GET /coordinator.
 
 // ───── 1. Sesión de esta pestaña ─────
 // La sesión se guarda por pestaña (sessionStorage): dos pestañas pueden tener usuarios distintos
@@ -160,7 +163,7 @@ requestAnimationFrame(dibujar);
 let firmaLista = '';
 function pintarJugadores(players) {
   // Solo se redibuja la lista si cambió algo (no 20 veces por segundo)
-  const firma = players.map(p => `${p.userId}:${p.username}:${colorDe(p)}:${p.badge}`).join('|');
+  const firma = players.map(p => `${p.userId}:${p.username}:${colorDe(p)}:${p.badge}:${p.coordinator}`).join('|');
   if (firma === firmaLista) return;
   firmaLista = firma;
 
@@ -178,6 +181,12 @@ function pintarJugadores(players) {
     insignia.className = `insignia ${p.badge}`;
     insignia.textContent = p.badge === 'google' ? 'Google' : 'Local';
     li.append(ficha, nombre, insignia);
+    if (p.coordinator) {                              // en qué coordinador está conectado ese jugador
+      const coord = document.createElement('span');
+      coord.className = 'coordtag';
+      coord.textContent = p.coordinator;
+      li.append(coord);
+    }
     if (p.username === miUsuario) {
       const yo = document.createElement('span');
       yo.className = 'yo';
@@ -200,7 +209,7 @@ function pintarColores(colores) {
     b.setAttribute('aria-label', `Elegir color ${color}`);
     b.addEventListener('click', () => {
       // El cliente solo PIDE el cambio; el servidor lo valida y lo replica en el próximo state
-      ws.send(JSON.stringify({ type: 'extras_update', extras: { color } }));
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'extras_update', extras: { color } }));
       b.blur();               // devuelve el teclado al juego
     });
     cont.append(b);
@@ -213,74 +222,196 @@ function marcarColorElegido() {
   for (const b of document.querySelectorAll('.color')) b.classList.toggle('elegido', b.dataset.color === actual);
 }
 
-// ───── 6. Conexión con el coordinador ─────
+// ───── 6. Conexión con el coordinador (directory + reconexión) ─────
+let ws = null;                      // WebSocket actual (cambia en cada reconexión)
 let cerrandoAProposito = false;
-let ultimoError = null;          // el coordinador explica el motivo antes de cerrar
-const ws = new WebSocket(`${COORDINATOR_WS}/connect?token=${encodeURIComponent(token)}`);
+let ultimoError = null;             // el coordinador explica el motivo antes de cerrar
+let coordinadorActual = null;       // { coordinatorId, publicUrl } que asignó el auth
+let intentos = 0;
+let reconectando = false;
+const ESPERA_MS = 1000;             // pausa entre reintentos
+const CONEXION_MAX_MS = 4000;       // si el WS no abre en este tiempo, se descarta y se vuelve a preguntar
 
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-  switch (msg.type) {
-    case 'welcome': {
-      // Identidad + dimensiones del mundo: el canvas se arma con lo que dice el servidor
-      world = msg.world;
-      canvas.width  = world.width;
-      canvas.height = world.height;
-      miUsuario = msg.you.username;
-      const insignia = document.getElementById('insignia');
-      insignia.className = `insignia ${msg.you.provider}`;
-      insignia.textContent = msg.you.provider === 'google' ? 'Google' : 'Local';
-      actualizarVencimiento(msg);
-      pintarExpiracion();
-      pintarColores(msg.colors || []);
-      estado('Conectado. ¡A jugar!', 'on');
-      canvas.focus();
-      break;
-    }
-    case 'state':                                     // 20 veces por segundo
-      lastState = msg;
-      pintarJugadores(msg.players);
-      marcarColorElegido();
-      break;
-    case 'players_update':                            // alguien entró o salió
-      if (msg.event) actividad(msg.message);
-      break;
-    case 'extras_ok':
-      actividad('¡Color actualizado! Todos los jugadores ya lo ven.');
-      break;
-    case 'session_update':                            // cambió la duración de la sesión (o se corrigió el reloj)
-      console.log('[juego] session_update', msg);
-      actualizarVencimiento(msg);
-      pintarExpiracion();
-      if (msg.refresh) renovarToken();                // la duración aumentó: pedimos un token más largo
-      else if (msg.message) actividad('La duración de la sesión cambió.');
-      break;
-    case 'reauth_ok':
-      console.log('[juego] reauth_ok', msg);
-      actualizarVencimiento(msg);
-      pintarExpiracion();
-      break;
-    case 'error':                                     // { code, message, hint }
-      ultimoError = msg;
-      console.warn('[juego] error del servidor', msg);
-      if (MENSAJES[msg.code]) actividad(MENSAJES[msg.code]);
-      break;
+function mostrarCoordinador(id, extra) {
+  document.getElementById('coordinador').textContent = id || '—';
+  const badge = document.getElementById('coordBadge');
+  badge.textContent = `Coordinador: ${id || '—'}${extra ? ' · ' + extra : ''}`;
+  badge.classList.toggle('sin', !id);
+}
+
+// Paso 2 del flujo: ¿a cuál coordinador me conecto? (el auth elige el de menor carga y que esté vivo)
+// Coordinadores que se acaban de caer: se le pide al auth que no los devuelva por unos segundos
+// (puede seguir listándolos hasta 6 s, mientras no se venza su heartbeat).
+const caidos = new Map();           // coordinatorId → hasta cuándo evitarlo (ms)
+async function pedirCoordinador() {
+  const ahora = Date.now();
+  for (const [id, hasta] of caidos) if (hasta <= ahora) caidos.delete(id);
+  const excluir = caidos.size ? `?exclude=${encodeURIComponent([...caidos.keys()].join(','))}` : '';
+  const res = await fetch(`${AUTH_URL}/coordinator${excluir}`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.publicUrl) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.sinCoordinadores = res.status === 503;
+    throw err;
   }
-};
+  return data;                      // { coordinatorId, publicUrl }
+}
 
-ws.onclose = (event) => {
-  estado('Desconectado', 'off');
-  console.log(`[juego] conexión cerrada: código ${event.code} "${event.reason}"`, ultimoError || '');
-  if (cerrandoAProposito) return volverAlLogin(null);     // fue el botón "Cerrar sesión"
+// Paso 3: abre el WebSocket al coordinador asignado, con el token
+async function conectar() {
+  reconectando = false;
+  estado(intentos ? 'Buscando coordinador…' : 'Pidiendo coordinador…', 'off');
+  mostrarCoordinador(null);
+  try {
+    coordinadorActual = await pedirCoordinador();
+  } catch (err) {
+    console.warn('[juego] GET /coordinator falló:', err.message);
+    estado(err.sinCoordinadores ? 'No hay coordinadores disponibles. Reintentando…' : 'Sin conexión con el servidor. Reintentando…', 'off');
+    return reintentar();
+  }
+  console.log(`[juego] el auth asignó ${coordinadorActual.coordinatorId} (${coordinadorActual.publicUrl})`);
+  mostrarCoordinador(coordinadorActual.coordinatorId, 'conectando…');
+  estado(`Conectando a ${coordinadorActual.coordinatorId}…`, 'off');
+  abrirSocket();
+}
 
-  let texto;
-  if (ultimoError) texto = amigable(ultimoError.code, 'Tu sesión se cerró. Inicia sesión de nuevo.');
-  else if (event.code === 1006) texto = 'Se perdió la conexión con el servidor del juego. Inténtalo de nuevo en un momento.';
-  else texto = 'Tu sesión se cerró. Inicia sesión de nuevo.';
+// Rebalanceo automático: se pide coordinador al auth y se abre el WebSocket nuevo SIN recargar.
+// El viejo lo cierra su coordinador (4002) cuando ve que entraste en otro; como "ws" ya apunta
+// al socket nuevo, ese cierre se ignora. El coordinador viejo, antes de avisar, detiene al jugador y
+// manda por el mesh su posición y color exactos: al llegar al nuevo aparece en el mismo punto y color.
+let migrando = false;
+async function migrar() {
+  if (migrando || reconectando || cerrandoAProposito) return;
+  migrando = true;
+  let cambio = false;
+  try {
+    const nuevo = await pedirCoordinador();
+    if (nuevo.coordinatorId === coordinadorActual.coordinatorId) return;   // el auth dice quedarse
+    cambio = true;
+    console.log(`[juego] rebalanceo: ${coordinadorActual.coordinatorId} → ${nuevo.coordinatorId}`);
+    actividad(`Te pasamos a ${nuevo.coordinatorId} para repartir mejor la carga`);
+    coordinadorActual = nuevo;
+    mostrarCoordinador(nuevo.coordinatorId, 'cambiando…');
+    abrirSocket();
+  } catch (err) {
+    console.warn('[juego] rebalanceo cancelado:', err.message);           // se queda donde está
+  } finally {
+    migrando = false;
+    if (!cambio && ws && ws.readyState === WebSocket.OPEN) {               // se queda: puede seguir moviéndose
+      ws.send(JSON.stringify({ type: 'rebalance_cancel' }));
+      ultimaDir = { x: 0, y: 0 };
+      enviarIntencion();
+    }
+  }
+}
 
-  // 4002 = la misma cuenta se abrió en otra pestaña o navegador: se conserva el token de esta pestaña
-  volverAlLogin(texto, event.code !== 4002);
-};
+function reintentar(inmediato = false) {
+  if (cerrandoAProposito || reconectando) return;
+  reconectando = true;
+  intentos++;
+  setTimeout(conectar, inmediato ? 0 : ESPERA_MS);   // si se cayó el coordinador, se busca otro YA
+}
+
+function abrirSocket() {
+  // seq: si por una carrera quedo conectado en dos coordinadores, ellos se quedan con la conexión más nueva
+  const socket = new WebSocket(`${coordinadorActual.publicUrl}/connect?token=${encodeURIComponent(token)}&seq=${Date.now()}`);
+  ws = socket;
+  ultimoError = null;
+  let abrio = false;
+  // Un coordinador que murió hace segundos puede seguir en el directorio: si no abre, se pregunta de nuevo
+  const timer = setTimeout(() => { if (!abrio) socket.close(); }, CONEXION_MAX_MS);
+
+  socket.onopen = () => {
+    abrio = true;
+    clearTimeout(timer);
+    // Se reenvía la tecla que siga apretada: el coordinador nuevo no sabe hacia dónde caminabas
+    ultimaDir = { x: 0, y: 0 };
+    enviarIntencion();
+  };
+
+  socket.onmessage = (event) => {
+    if (socket !== ws) return;
+    const msg = JSON.parse(event.data);
+    switch (msg.type) {
+      case 'welcome': {
+        // Identidad + dimensiones del mundo: el canvas se arma con lo que dice el servidor
+        world = msg.world;
+        canvas.width  = world.width;
+        canvas.height = world.height;
+        miUsuario = msg.you.username;
+        intentos = 0;
+        mostrarCoordinador(msg.coordinatorId || coordinadorActual.coordinatorId);
+        document.getElementById('tick').textContent = `${world.tickRate} Hz`;
+        const insignia = document.getElementById('insignia');
+        insignia.className = `insignia ${msg.you.provider}`;
+        insignia.textContent = msg.you.provider === 'google' ? 'Google' : 'Local';
+        actualizarVencimiento(msg);
+        pintarExpiracion();
+        pintarColores(msg.colors || []);
+        estado(`Conectado a ${msg.coordinatorId}. ¡A jugar!`, 'on');
+        canvas.focus();
+        break;
+      }
+      case 'state':                                     // 20 veces por segundo
+        lastState = msg;
+        pintarJugadores(msg.players);
+        marcarColorElegido();
+        break;
+      case 'players_update':                            // alguien entró o salió
+        if (msg.event) actividad(msg.message);
+        break;
+      case 'extras_ok':
+        actividad('¡Color actualizado! Todos los jugadores ya lo ven.');
+        break;
+      case 'session_update':                            // cambió la duración de la sesión (o se corrigió el reloj)
+        console.log('[juego] session_update', msg);
+        actualizarVencimiento(msg);
+        pintarExpiracion();
+        if (msg.refresh) renovarToken();                // la duración aumentó: pedimos un token más largo
+        else if (msg.message) actividad('La duración de la sesión cambió.');
+        break;
+      case 'reauth_ok':
+        console.log('[juego] reauth_ok', msg);
+        actualizarVencimiento(msg);
+        pintarExpiracion();
+        break;
+      case 'rebalance':                                 // el coordinador tiene de más: cambiarse sin recargar
+        migrar();
+        break;
+      case 'error':                                     // { code, message, hint }
+        ultimoError = msg;
+        console.warn('[juego] error del servidor', msg);
+        if (MENSAJES[msg.code]) actividad(MENSAJES[msg.code]);
+        break;
+    }
+  };
+
+  socket.onclose = (event) => {
+    clearTimeout(timer);
+    if (socket !== ws) return;
+    console.log(`[juego] conexión con ${coordinadorActual.coordinatorId} cerrada: código ${event.code} "${event.reason}"`, ultimoError || '');
+    if (cerrandoAProposito) return volverAlLogin(null);     // fue el botón "Cerrar sesión"
+
+    // Problemas de SESIÓN (token vencido o inválido, cuenta abierta en otro lado): al login, como antes.
+    if (ultimoError || event.code === 4001 || event.code === 4002) {
+      estado('Desconectado', 'off');
+      const texto = amigable(ultimoError && ultimoError.code, 'Tu sesión se cerró. Inicia sesión de nuevo.');
+      return volverAlLogin(texto, event.code !== 4002);     // 4002: se conserva el token de esta pestaña
+    }
+
+    // Problemas del COORDINADOR (se cayó, no responde, se apagó): NO se reconecta al mismo,
+    // se vuelve a pedir GET /coordinator y se conecta al que diga el auth.
+    const caido = coordinadorActual.coordinatorId;
+    caidos.set(caido, Date.now() + 8000);
+    estado(`Se perdió ${caido}. Buscando otro coordinador…`, 'off');
+    actividad(abrio ? `Se perdió la conexión con ${caido}. Buscando otro coordinador…` : `${caido} no responde. Buscando otro…`);
+    mostrarCoordinador(null, `${caido} caído`);
+    reintentar(abrio);                                  // estaba conectado: reconexión inmediata
+  };
+}
+
+// ───── Arranque: login → pedir coordinador → conectar ─────
+conectar();
 
 // ───── 7. Teclado → intención de movimiento ─────
 // Solo se envía la dirección deseada (-1, 0 o 1 por eje) y solo cuando cambia.
@@ -300,7 +431,7 @@ function enviarIntencion() {
   };
   if (dir.x === ultimaDir.x && dir.y === ultimaDir.y) return;
   ultimaDir = dir;
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'intent', intent: { dir } }));
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'intent', intent: { dir } }));
 }
 
 window.addEventListener('keydown', (e) => {
@@ -341,7 +472,7 @@ async function renovarToken() {
     }
     sessionStorage.setItem('token', data.token);
     tokenEnUso = data.token;
-    ws.send(JSON.stringify({ type: 'reauth', token: data.token }));   // el coordinador lo verifica
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'reauth', token: data.token }));   // el coordinador lo verifica
     actividad('Tu sesión se extendió.');
   } catch (err) {
     console.warn('[juego] no se pudo contactar al auth para renovar el token', err);
@@ -350,7 +481,7 @@ async function renovarToken() {
 
 setInterval(() => {
   const actual = sessionStorage.getItem('token');
-  if (actual === tokenEnUso || cerrandoAProposito || ws.readyState !== WebSocket.OPEN) return;
+  if (actual === tokenEnUso || cerrandoAProposito || !ws || ws.readyState !== WebSocket.OPEN) return;
   tokenEnUso = actual;
   console.log('[juego] el token cambió: se envía al coordinador para verificarlo');
   ws.send(JSON.stringify({ type: 'reauth', token: actual || '' }));
@@ -360,7 +491,7 @@ setInterval(() => {
 // Se avisa al coordinador ({type:'logout'}); él confirma y cierra la conexión.
 document.getElementById('logout').addEventListener('click', () => {
   cerrandoAProposito = true;
-  if (ws.readyState === WebSocket.OPEN) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'logout' }));
     setTimeout(() => volverAlLogin(null), 1500);   // por si el coordinador no responde
   } else {
