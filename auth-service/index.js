@@ -20,6 +20,13 @@ const BCRYPT_ROUNDS = Math.max(10, parseInt(process.env.BCRYPT_ROUNDS || '10', 1
 const DB_PATH       = path.resolve(__dirname, process.env.DB_PATH || 'users.db');
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 
+// Directory service (Taller 6): un coordinador sin heartbeat en este tiempo se considera muerto
+const COORDINATOR_TTL_MS = parseInt(process.env.COORDINATOR_TTL_MS, 10) || 6000;   // 3 ciclos de 2 s
+// Asignaciones recientes que todavía no aparecen en el connectedPlayers del heartbeat (ver GET /coordinator)
+const AUTO_REBALANCE     = process.env.AUTO_REBALANCE !== 'false';   // mover jugadores conectados para emparejar la carga
+const REBALANCE_COOLDOWN_MS = 4000;                                 // pausa entre órdenes al mismo coordinador
+const PENDING_TTL_MS     = process.env.PENDING_TTL_MS !== undefined ? parseInt(process.env.PENDING_TTL_MS, 10) : 5000;
+
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   console.error('JWT_SECRET falta o tiene menos de 32 caracteres. Genera uno con:');
   console.error('  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
@@ -221,6 +228,10 @@ app.get('/', (_req, res) => res.json({
     'GET /auth/google/config': 'Client ID público que usa el botón de Google del cliente',
     'GET /session-policy': 'Duración actual de los tokens',
     'POST /refresh':       'Renueva un token emitido con una duración menor a la vigente. Body: {"token":"..."}',
+    'POST /heartbeat':     'Directory: un coordinador anuncia que sigue vivo (cada 2 s). Body: {coordinatorId, publicUrl, peerUrl, connectedPlayers, uptime}',
+    'GET /coordinator':    'Directory: el coordinador vivo con menos jugadores → {coordinatorId, publicUrl} (503 si no hay)',
+    'GET /peers':          'Directory: coordinadores vivos para formar el mesh → {peers:[{coordinatorId, peerUrl}]}',
+    'GET /coordinators':   'Directory (depuración): todos los coordinadores vivos con su carga',
     'GET /health':         'Estado del servicio',
   },
 }));
@@ -428,10 +439,169 @@ app.post('/auth/google', async (req, res) => {
   }
 });
 
+// ───────── 6b. Directory service (Taller 6) ─────────
+// El auth-service también es el "directorio" de coordinadores: ellos se registran con
+// heartbeats y los clientes le preguntan a cuál conectarse. Todo en memoria: si el auth se
+// reinicia, los coordinadores vuelven a aparecer solos con su siguiente heartbeat (≤ 2 s).
+//
+// clave = coordinatorId en minúsculas (así 'Coord-A' y 'coord-a' son el MISMO) →
+//   { coordinatorId, publicUrl, peerUrl, connectedPlayers, uptime, lastSeen, pending: [timestamps] }
+const coordinators = new Map();
+
+const isWsUrl = (u) => typeof u === 'string' && u.length <= 300 && /^wss?:\/\/[^\s/]+/i.test(u);
+const isAlive = (c, now = Date.now()) => now - c.lastSeen <= COORDINATOR_TTL_MS;
+
+// Carga efectiva = jugadores que el coordinador dice tener + clientes que acabamos de mandarle
+// y que quizá todavía no abrieron el WebSocket. Sin esto, 4 clientes que piden coordinador en
+// el mismo segundo verían la MISMA carga (el heartbeat llega cada 2 s) y irían los 4 al mismo.
+function effectiveLoad(c, now) {
+  c.pending = c.pending.filter(t => now - t < PENDING_TTL_MS);
+  return c.connectedPlayers + c.pending.length;
+}
+
+function aliveCoordinators() {
+  const now = Date.now();
+  return [...coordinators.values()].filter(c => isAlive(c, now));
+}
+
+// Barrido: descarta (y avisa en consola) a los que dejaron de hacer heartbeat
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, c] of coordinators) {
+    if (!isAlive(c, now)) {
+      coordinators.delete(id);
+      console.log(`[directory] ${c.coordinatorId} sin heartbeat hace ${((now - c.lastSeen) / 1000).toFixed(1)} s: se descarta ` +
+        `(quedan ${coordinators.size}: ${[...coordinators.values()].map(x => x.coordinatorId).join(', ') || 'ninguno'})`);
+    }
+  }
+}, 1000).unref();
+
+// POST /heartbeat → 200 { ok: true } | 400
+app.post('/heartbeat', (req, res) => {
+  const b = req.body;
+  const bad = (m) => fail(res, 400, 'invalid_heartbeat', m,
+    'Body: {"coordinatorId":"coord-a","publicUrl":"ws://localhost:5001","peerUrl":"ws://localhost:5101","connectedPlayers":0,"uptime":12}');
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return bad('El body debe ser un objeto JSON');
+  if (typeof b.coordinatorId !== 'string' || !/^[\w.-]{1,64}$/.test(b.coordinatorId)) return bad('coordinatorId debe ser texto (1-64: letras, números, . _ -)');
+  if (!isWsUrl(b.publicUrl)) return bad('publicUrl debe empezar con ws:// o wss://');
+  if (!isWsUrl(b.peerUrl))   return bad('peerUrl debe empezar con ws:// o wss://');
+  if (!Number.isInteger(b.connectedPlayers) || b.connectedPlayers < 0) return bad('connectedPlayers debe ser un entero ≥ 0');
+  if (!Number.isFinite(b.uptime) || b.uptime < 0) return bad('uptime debe ser un número ≥ 0 (segundos)');
+
+  // Nombres únicos sin importar mayúsculas: si OTRO coordinador vivo (otra URL) ya usa ese
+  // nombre, se rechaza. La misma URL sí puede volver a registrarse (es el mismo que se reinició).
+  const key  = b.coordinatorId.toLowerCase();
+  const prev = coordinators.get(key);
+  if (prev && isAlive(prev) && prev.publicUrl.toLowerCase() !== b.publicUrl.toLowerCase()) {
+    console.log(`[directory] ✘ ${b.coordinatorId} (${b.publicUrl}) rechazado: el nombre ya lo usa ${prev.coordinatorId} (${prev.publicUrl})`);
+    return fail(res, 409, 'coordinator_id_taken',
+      `Ya hay un coordinador llamado "${prev.coordinatorId}" (${prev.publicUrl})`,
+      'Arranca este coordinador con otro nombre: npm start -- otro-nombre (no importan mayúsculas: Coord-A = coord-a)');
+  }
+  // Tampoco dos nombres con la MISMA URL: el túnel solo llega a uno de los dos procesos, y los
+  // jugadores que se le asignen al otro terminarían en el equivocado (su carga nunca subiría).
+  const sameUrl = aliveCoordinators().find(c => c.coordinatorId.toLowerCase() !== key &&
+    c.publicUrl.toLowerCase() === b.publicUrl.toLowerCase());
+  if (sameUrl) {
+    console.log(`[directory] ✘ ${b.coordinatorId} rechazado: su URL ${b.publicUrl} ya es de ${sameUrl.coordinatorId}`);
+    return fail(res, 409, 'public_url_taken',
+      `La URL ${b.publicUrl} ya la usa el coordinador "${sameUrl.coordinatorId}"`,
+      'Cada coordinador necesita SU propio túnel: abre ngrok para su puerto y pon esa URL en COORD_PUBLIC_URL');
+  }
+  // Asignaciones pendientes: si el coordinador ahora reporta MÁS jugadores que antes, esos
+  // clientes ya llegaron y ya están en connectedPlayers: se quitan de "pending" para no
+  // contarlos dos veces (antes quedaban contados doble hasta 3 s y el reparto salía 3/2/1).
+  const pending = prev ? prev.pending : [];
+  const llegaron = prev ? Math.max(0, b.connectedPlayers - prev.connectedPlayers) : 0;
+  pending.splice(0, Math.min(llegaron, pending.length));          // los más antiguos primero
+  coordinators.set(key, {
+    coordinatorId: b.coordinatorId, publicUrl: b.publicUrl, peerUrl: b.peerUrl,
+    connectedPlayers: b.connectedPlayers, uptime: b.uptime,
+    lastSeen: Date.now(), pending, lastMoveAt: prev ? prev.lastMoveAt : 0,
+  });
+  if (!prev || !isAlive(prev)) {
+    console.log(`[directory] ${b.coordinatorId} registrado (cliente ${b.publicUrl}, peers ${b.peerUrl}). ` +
+      `Coordinadores vivos: ${[...coordinators.values()].map(x => x.coordinatorId).join(', ')}`);
+  }
+  res.json({ ok: true, rebalance: cuantosMover(coordinators.get(key)) });
+});
+
+// Rebalanceo automático: si ESTE es el coordinador más cargado y le lleva 2 o más jugadores al
+// menos cargado, se le pide mover la mitad de la diferencia. Esos clientes vuelven a pedir
+// GET /coordinator y el auth los manda a los de menor carga, sin recargar la página.
+// Ejemplo: 4/0/0 → mueve 2 → 2/1/1.   2/1/1 → diferencia 1 → no se mueve nada.
+function cuantosMover(c) {
+  if (!AUTO_REBALANCE) return 0;
+  const now  = Date.now();
+  // Solo cuentan los que mandaron heartbeat hace poco: uno que se acaba de caer sigue "vivo" hasta
+  // 6 s, y no hay que mandarle jugadores
+  const vivos = aliveCoordinators().filter(x => now - x.lastSeen <= 3000);
+  if (vivos.length < 2 || !vivos.includes(c) || now - c.lastMoveAt < REBALANCE_COOLDOWN_MS) return 0;
+  const carga = (x) => effectiveLoad(x, now);
+  const max = Math.max(...vivos.map(carga));
+  const min = Math.min(...vivos.map(carga));
+  const masCargado = vivos.find(x => carga(x) === max);          // solo uno a la vez (el primero)
+  if (masCargado !== c || max - min < 2) return 0;
+  const mover = Math.min(Math.floor((max - min) / 2), c.connectedPlayers);
+  if (mover > 0) {
+    c.lastMoveAt = now;
+    console.log(`[directory] rebalanceo: ${c.coordinatorId} tiene ${max} y el menos cargado ${min} → mueve ${mover} jugador(es)`);
+  }
+  return mover;
+}
+
+// GET /coordinator → { coordinatorId, publicUrl } del coordinador vivo con menos carga.
+// Es client-side load balancing: el auth NO proxea tráfico, solo dice a dónde conectarse.
+app.get('/coordinator', (req, res) => {
+  const now  = Date.now();
+  // ?exclude=daniela,camilo → el cliente acaba de perder esos coordinadores: aunque sigan en el
+  // directorio (hasta 6 s sin heartbeat), no se le devuelven si hay otro vivo. Así se reconecta ya.
+  const excluir = String(req.query.exclude || '').toLowerCase().split(',').filter(Boolean);
+  const todos = aliveCoordinators();
+  const sinExcluidos = todos.filter(c => !excluir.includes(c.coordinatorId.toLowerCase()));
+  const candidatos = sinExcluidos.length ? sinExcluidos : todos;
+  // Entre los vivos se prefieren los que mandaron heartbeat hace ≤ 3 s (uno recién caído aún no se
+  // descarta hasta los 6 s, pero ya no se le asignan jugadores si hay otro sano)
+  const frescos = candidatos.filter(c => now - c.lastSeen <= 3000);
+  const vivos = frescos.length ? frescos : candidatos;
+  if (!vivos.length) {
+    console.log('[directory] GET /coordinator → 503 (no hay coordinadores vivos)');
+    return fail(res, 503, 'no_coordinators_available', 'No hay coordinadores disponibles en este momento',
+      'Enciende al menos un coordinador (npm start en coordinator/) y espera su primer heartbeat (≤ 2 s)');
+  }
+  let best = null, bestLoad = Infinity;
+  for (const c of vivos) {                         // el primero que encuentre gana los empates
+    const load = effectiveLoad(c, now);
+    if (load < bestLoad) { best = c; bestLoad = load; }
+  }
+  best.pending.push(now);
+  console.log(`[directory] GET /coordinator → ${best.coordinatorId} (carga ${bestLoad}; ` +
+    vivos.map(c => `${c.coordinatorId}=${c.connectedPlayers}+${c.pending.length}`).join(' ') + ')');
+  res.json({ coordinatorId: best.coordinatorId, publicUrl: best.publicUrl });
+});
+
+// GET /peers → { peers: [{ coordinatorId, peerUrl }] }  (cada coordinador se filtra a sí mismo)
+app.get('/peers', (_req, res) => {
+  res.json({ peers: aliveCoordinators().map(c => ({ coordinatorId: c.coordinatorId, peerUrl: c.peerUrl })) });
+});
+
+// GET /coordinators → vista de depuración (no está en el PDF)
+app.get('/coordinators', (_req, res) => {
+  const now = Date.now();
+  res.json({
+    ttlMs: COORDINATOR_TTL_MS,
+    coordinators: [...coordinators.values()].map(c => ({
+      coordinatorId: c.coordinatorId, publicUrl: c.publicUrl, peerUrl: c.peerUrl,
+      connectedPlayers: c.connectedPlayers, pendingAssignments: effectiveLoad(c, now) - c.connectedPlayers,
+      uptime: c.uptime, lastSeenMsAgo: now - c.lastSeen, alive: isAlive(c, now),
+    })),
+  });
+});
+
 // ───────── 7. Rutas inexistentes y errores ─────────
 app.use((req, res) => {
   fail(res, 404, 'not_found', `No existe ${req.method} ${req.path}`,
-    'Endpoints disponibles: POST /register, POST /login, POST /auth/google, POST /refresh, GET /auth/google/config, GET /session-policy, GET /health');
+    'Endpoints disponibles: POST /register, POST /login, POST /auth/google, POST /refresh, POST /heartbeat, GET /coordinator, GET /peers, GET /coordinators, GET /auth/google/config, GET /session-policy, GET /health');
 });
 
 app.use((err, _req, res, _next) => {
