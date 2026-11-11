@@ -794,3 +794,36 @@ button:disabled {
     font-size: 0.68rem;
   }
 }
+
+/* TALLER 6: coordinador al que está conectado el jugador */
+.coord-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 4px 12px;
+  border: 1px solid rgba(230, 198, 111, 0.45);
+  border-radius: 30px;
+  color: var(--dorado);
+  background: rgba(230, 198, 111, 0.1);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.coord-badge.sin {
+  color: var(--secundario);
+  border-color: rgba(184, 201, 189, 0.3);
+  background: transparent;
+}
+
+.coordtag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid rgba(184, 201, 189, 0.3);
+  border-radius: 20px;
+  color: var(--secundario);
+  font-size: 0.66rem;
+  font-weight: 800;
+  vertical-align: 1px;
+}
