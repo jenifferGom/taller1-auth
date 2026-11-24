@@ -1,24 +1,30 @@
 {
   "name": "auth-service",
   "version": "1.0.0",
-  "description": "",
+  "description": "Servicio de autenticación: registro, login local y con Google, emisión de JWT",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node --disable-warning=ExperimentalWarning index.js",
+    "test": "node test.js",
+    "start:a": "node --disable-warning=ExperimentalWarning index.js auth-a",
+    "start:b": "node --disable-warning=ExperimentalWarning index.js auth-b",
+    "start:c": "node --disable-warning=ExperimentalWarning index.js auth-c",
+    "test:cluster": "node cluster-test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "bcrypt": "^6.0.0",
-    "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^13.0.3",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.6",
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.10",
     "express": "^5.3.0",
+    "google-auth-library": "^10.0.0",
     "jsonwebtoken": "^9.0.3",
     "ws": "^8.22.0"
+  },
+  "engines": {
+    "node": ">=22.5.0"
   }
 }
