@@ -6,6 +6,8 @@
   <title>GUARO ROYAL | Juego</title>
 
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/salas.css">
+  <link rel="stylesheet" href="css/chat.css">
 </head>
 
 <body class="pagina-juego">
@@ -33,6 +35,9 @@
 
         <!-- Taller 6: a qué coordinador está conectado este jugador -->
         <span id="coordBadge" class="coord-badge sin">Coordinador: —</span>
+
+        <!-- Taller 7: a qué auth-service (líder o réplica) está conectado este cliente -->
+        <span id="authBadge" class="coord-badge sin">Auth: —</span>
       </div>
 
       <button id="logout" class="boton peligro">
@@ -72,6 +77,22 @@
       <!-- PANEL LATERAL -->
       <aside class="panel">
 
+        <!-- PARQUÉS: partidas públicas y salas privadas entre jugadores del lobby (js/salas/online.js) -->
+        <section class="tarjeta">
+
+          <span class="tipo-formulario">PARQUÉS</span>
+          <h2>Salas</h2>
+
+          <p class="descripcion">
+            Busca una partida pública o juega en una sala privada con código.
+          </p>
+
+          <div id="salas" class="salas-panel">
+            <p class="vacio">Conectando…</p>
+          </div>
+
+        </section>
+
         <!-- INFORMACIÓN DE SESIÓN -->
         <section class="tarjeta">
 
@@ -92,6 +113,11 @@
 
             Coordinador:
             <b id="coordinador">—</b>
+
+            <br>
+
+            Auth:
+            <b id="authNodo">—</b>
 
             <br>
 
@@ -147,7 +173,12 @@
   </main>
 
   <script src="js/config.js"></script>
+  <script src="js/auth-client.js"></script>
   <script src="js/lobby.js"></script>
+  <!-- Salas de parqués: usa la misma conexión de lobby.js -->
+  <script type="module" src="js/salas/online.js"></script>
+  <!-- Chat distribuido: panel flotante, usa la misma conexión de lobby.js -->
+  <script type="module" src="js/chat-lobby.js"></script>
 
 </body>
 </html>

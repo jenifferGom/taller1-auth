@@ -827,3 +827,18 @@ button:disabled {
   font-weight: 800;
   vertical-align: 1px;
 }
+
+
+/* TALLER 7: auth-service con el que habla el cliente (login) */
+.auth-info {
+  margin: 4px 0 0;
+  color: var(--secundario);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+/* Enlace al modo espectador en la página de inicio de sesión (examen final) */
+.enlace-espectador { text-align: center; margin: 18px 0 0; }
+.enlace-espectador a { color: #e6c66f; font-weight: 800; text-decoration: none; border-bottom: 1px dashed rgba(230,198,111,.6); }
+.enlace-espectador a:hover { border-bottom-style: solid; }

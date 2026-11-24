@@ -4,14 +4,20 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "start": "node index.js",
+  "test": "node test.js",
+  "test:mesh": "node mesh-test.js",
+  "start:a": "node index.js coord-a",
+  "start:b": "node index.js coord-b",
+  "start:c": "node index.js coord-c"
+},
+
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.10",
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
     "ws": "^8.22.0"

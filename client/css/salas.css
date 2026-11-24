@@ -1,0 +1,325 @@
+/* ─────────────────────────────────────────────────────────────
+   Guaro Royal · Salas de parqués (tarjeta del lobby + capa de la sala)
+   Mismos colores y tipografías del lobby. Variables con prefijo --s- y clases propias,
+   para no tocar ningún estilo de styles.css.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --s-fondo: #091a14;
+  --s-fondo-2: #0f2a1f;
+  --s-panel: rgba(17, 44, 33, 0.92);
+  --s-borde: rgba(230, 198, 111, 0.25);
+  --s-texto: #f7f5eb;
+  --s-tenue: #b8c9bd;
+  --s-dorado: #e6c66f;
+  --s-dorado-2: #d6ad4f;
+  --s-rojo: #ed4545;
+  --s-azul: #4389f5;
+  --s-verde: #42b879;
+  --s-titulo: 'Russo One', 'Arial Black', sans-serif;
+  --s-cuerpo: 'Nunito', system-ui, sans-serif;
+}
+
+/* ── Tarjeta "Salas" dentro del lobby ── */
+.salas-panel { display: grid; gap: 12px; margin-top: 10px; }
+.salas-panel .salas-boton { margin-top: 0; width: 100%; }
+.salas-acciones { display: grid; gap: 10px; }
+.salas-unirse-form { display: flex; gap: 8px; }
+.salas-codigo { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--s-borde); background: rgba(0,0,0,.25);
+  color: var(--s-texto); font-family: var(--s-titulo); font-size: 1.05rem; letter-spacing: .25em; text-transform: uppercase; }
+.salas-codigo:focus, .salas-form input:focus { outline: 2px solid var(--s-dorado); outline-offset: 1px; }
+.salas-unirse { background: rgba(230,198,111,.15); color: var(--s-dorado); border: 1px solid var(--s-borde) !important; }
+.salas-unirse:disabled { opacity: .45; cursor: not-allowed; }
+.salas-subtitulo { margin: 4px 0 0; color: var(--s-tenue); font-size: .85rem; font-weight: 700; }
+.salas-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.salas-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.06); }
+.salas-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.salas-info b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.salas-info small { color: var(--s-tenue); font-size: .78rem; }
+.salas-fichas { display: flex; gap: 4px; margin-top: 3px; }
+.salas-fichas i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 -2px 2px rgba(0,0,0,.3); }
+.salas-estado { font-size: .78rem; font-weight: 800; color: var(--s-tenue); padding: 4px 9px; border-radius: 99px; border: 1px solid rgba(255,255,255,.12); }
+.salas-ancho { width: 100%; }
+/* Buscando partida pública */
+.salas-buscando { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: center; padding: 12px; border-radius: 12px;
+  border: 1px solid var(--s-borde); background: rgba(0,0,0,.22); }
+.salas-buscando b { display: block; font-family: var(--s-titulo); color: var(--s-dorado); letter-spacing: .02em; }
+.salas-buscando small { color: var(--s-tenue); font-size: .82rem; }
+.salas-buscando .salas-secundario { grid-column: 1 / -1; }
+.salas-girando { font-size: 1.6rem; display: inline-block; animation: salas-girar 1.4s linear infinite; }
+@keyframes salas-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .salas-girando { animation: none; } }
+/* Cuenta regresiva de la sala de espera pública */
+.salas-raiz .s-cuenta { font-family: var(--s-titulo); font-size: clamp(1.3rem, 4vw, 1.9rem); color: var(--s-dorado); margin: 6px 0; }
+.salas-mia { display: grid; gap: 10px; padding: 12px; border-radius: 12px; border: 2px solid var(--c); background: rgba(0,0,0,.22); }
+.salas-mia small { color: var(--s-tenue); }
+.salas-form { display: grid; gap: 6px; }
+.salas-form label { font-size: .8rem; color: var(--s-tenue); font-weight: 700; margin-top: 4px; }
+.salas-form input { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--s-borde); background: rgba(0,0,0,.25); color: var(--s-texto); font: 600 1rem var(--s-cuerpo); }
+.salas-seg, .salas-niveles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.salas-seg button, .salas-niveles button { padding: 9px 4px; border-radius: 10px; border: 1px solid var(--s-borde); background: rgba(0,0,0,.25);
+  color: var(--s-texto); font: 800 .9rem var(--s-cuerpo); cursor: pointer; display: grid; justify-items: center; gap: 2px; }
+.salas-seg button { font-family: var(--s-titulo); font-size: 1.05rem; }
+.salas-seg .activo, .salas-niveles .activo { border-color: var(--s-dorado); background: rgba(230,198,111,.18); box-shadow: 0 0 12px rgba(230,198,111,.25); }
+.salas-fila { display: flex; gap: 8px; margin-top: 8px; }
+.salas-fila .boton { flex: 1; margin-top: 0; }
+.salas-secundario { background: transparent; color: var(--s-tenue); border: 1px solid rgba(255,255,255,.15) !important; }
+
+/* ── Capa de la sala (encima del lobby) ── */
+body.en-sala { overflow: hidden; }
+.salas-capa { position: fixed; inset: 0; z-index: 40; overflow-y: auto; overscroll-behavior: contain;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(20px, env(safe-area-inset-bottom));
+  background: radial-gradient(70vmax 50vmax at 50% -10%, rgba(230,198,111,.12), transparent 60%), var(--s-fondo);
+  color: var(--s-texto); font-family: var(--s-cuerpo); font-weight: 700; animation: s-entrar .3s ease-out; }
+.salas-capa[hidden] { display: none; }
+@keyframes s-entrar { from { opacity: 0; transform: translateY(12px); } }
+.salas-raiz h2, .salas-raiz h3 { font-family: var(--s-titulo); font-weight: 400; }
+.salas-raiz h3 { font-size: 1rem; margin: 0 0 10px; color: var(--s-tenue); }
+.sala-espera, .sala-juego { max-width: 1120px; margin: 0 auto; }
+.sala-espera { max-width: 560px; }
+.sala-cabecera { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.sala-titulo { flex: 1; min-width: 0; display: grid; text-align: center; }
+.sala-titulo b { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sala-titulo small { color: var(--s-tenue); font-size: .78rem; }
+.sala-marca { font-size: .66rem; letter-spacing: .28em; color: var(--s-dorado); font-weight: 900; }
+.sala-acciones { display: flex; gap: 6px; }
+
+/* Botones de la sala */
+.salas-raiz .btn { border: 0; border-radius: 12px; padding: 12px 16px; font: 900 1rem var(--s-cuerpo); color: var(--s-texto);
+  background: rgba(255,255,255,.08); box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); cursor: pointer; transition: transform .12s, filter .12s; touch-action: manipulation; }
+.salas-raiz .btn:active:not(:disabled) { transform: translateY(2px) scale(.98); }
+.salas-raiz .btn:disabled { opacity: .45; cursor: not-allowed; }
+.salas-raiz .btn-grande { width: 100%; padding: 16px 20px; font-size: 1.1rem; border-radius: 16px; }
+.salas-raiz .btn-chico { padding: 8px 11px; font-size: .85rem; border-radius: 10px; }
+.salas-raiz .btn-fantasma { background: transparent; border: 1px solid var(--s-borde); box-shadow: none; color: var(--s-tenue); }
+.salas-raiz .btn-peligro { background: #a92d2d; border: 1px solid rgba(237,69,69,.45); box-shadow: none; }
+.salas-raiz .btn-dorado, .salas-raiz .btn-amarillo { color: #172116; background: linear-gradient(135deg, #f0d98f, var(--s-dorado-2)); box-shadow: 0 6px 18px rgba(230,198,111,.25), inset 0 -3px 0 rgba(0,0,0,.18); }
+.salas-raiz .btn-rojo { background: var(--s-rojo); box-shadow: 0 6px 22px rgba(237,69,69,.35), inset 0 -3px 0 rgba(0,0,0,.2); }
+.salas-raiz .pulso { animation: s-pulso 1.4s ease-in-out infinite; }
+@keyframes s-pulso { 50% { transform: scale(1.03); filter: brightness(1.12); } }
+
+.s-tarjeta { background: var(--s-panel); border: 1px solid var(--s-borde); border-radius: 18px; padding: 16px; margin-bottom: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.25); }
+.s-etiqueta { font-size: .72rem; letter-spacing: .22em; color: var(--s-dorado); font-weight: 900; }
+.s-nota, .s-esperando { color: var(--s-tenue); font-size: .88rem; text-align: center; margin: 10px 0 0; }
+.codigo-sala { text-align: center; }
+.salas-raiz .codigo { display: flex; justify-content: center; gap: 6px; margin: 10px 0 12px; }
+.salas-raiz .codigo span { width: 42px; height: 54px; display: grid; place-items: center; font: 1.8rem var(--s-titulo); border-radius: 10px;
+  background: rgba(0,0,0,.35); border: 1px solid rgba(230,198,111,.5); color: #fff4cf; }
+.lista-jugadores { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.s-jugador { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.22); border: 2px solid transparent; transition: border-color .2s, box-shadow .2s; }
+.s-jugador.listo { border-color: var(--c); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 35%, transparent); }
+.salas-raiz .jugador-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.lista-jugadores .jugador-nombre { display: grid; line-height: 1.15; }
+.salas-raiz .jugador-nombre small { font-weight: 700; color: var(--s-tenue); }
+.salas-raiz .color-nombre { color: var(--c) !important; font-size: .78rem; }
+.ficha-mini { width: 22px; height: 22px; border-radius: 50%; flex: none;
+  background: radial-gradient(circle at 35% 30%, #fff 0 12%, var(--cn) 28%, var(--c) 70%); box-shadow: 0 0 8px var(--c), inset 0 -2px 3px rgba(0,0,0,.35); }
+.salas-raiz .pill { border: 1px solid var(--s-borde); background: transparent; border-radius: 99px; padding: 6px 10px; font: 900 .82rem var(--s-cuerpo); color: var(--s-tenue); cursor: pointer; white-space: nowrap; }
+.salas-raiz span.pill { cursor: default; }
+.salas-raiz .pill.activo { border-color: var(--c, var(--s-verde)); color: #fff; background: color-mix(in srgb, var(--c, var(--s-verde)) 25%, transparent); }
+.salas-raiz .pill.agua.activo { border-color: var(--s-azul); background: rgba(67,137,245,.25); }
+
+/* ── Partida ── */
+.juego-cuerpo { display: grid; gap: 14px; }
+.turno-actual { text-align: center; font-size: 1.1rem; padding: 8px 12px; margin-bottom: 8px; border-radius: 14px;
+  background: color-mix(in srgb, var(--c) 16%, transparent); border: 2px solid var(--c); box-shadow: 0 0 16px color-mix(in srgb, var(--c) 40%, transparent); transition: all .3s; }
+.turno-actual b { color: var(--cn); font-family: var(--s-titulo); font-weight: 400; }
+.turno-actual small { color: var(--s-tenue); font-size: .8rem; }
+.marco-tablero { width: 100%; max-width: min(100%, 74dvh); margin: 0 auto; aspect-ratio: 1; }
+.tablero { width: 100%; height: 100%; display: block; font-family: var(--s-cuerpo); user-select: none; }
+.fondo-tablero { fill: #0d241b; stroke: var(--s-borde); stroke-width: .8; }
+.carcel-borde { fill: color-mix(in srgb, var(--c) 20%, #0d241b); stroke: var(--c); stroke-width: 1.2; transition: stroke-width .3s; }
+.carcel-interior { fill: rgba(0,0,0,.25); stroke: color-mix(in srgb, var(--c) 45%, transparent); stroke-width: .5; stroke-dasharray: 2 1.4; }
+.carcel-puesto { fill: rgba(0,0,0,.3); stroke: color-mix(in srgb, var(--c) 50%, transparent); stroke-width: .5; }
+.carcel-nombre { fill: var(--cn); font-family: var(--s-titulo); font-size: 4.6px; letter-spacing: .2px; }
+.carcel.vacia { opacity: .35; }
+.carcel.turno .carcel-borde { stroke: var(--cn); stroke-width: 2.4; filter: drop-shadow(0 0 3px var(--c)); animation: s-turno 1.2s ease-in-out infinite; }
+@keyframes s-turno { 50% { stroke-width: 3.2; filter: drop-shadow(0 0 6px var(--c)); } }
+.casilla-normal { fill: #f7f3e6; stroke: rgba(0,0,0,.18); stroke-width: .3; }
+.casilla-salida { fill: var(--c); stroke: rgba(255,255,255,.7); stroke-width: .5; }
+.casilla-texto { fill: rgba(0,0,0,.6); font-size: 2.4px; font-weight: 900; pointer-events: none; }
+.seguro-escudo { fill: #8fa598; stroke: #fff; stroke-width: .5; }
+.casilla-pasillo { fill: var(--c); fill-opacity: var(--o); stroke: rgba(255,255,255,.35); stroke-width: .3; }
+.centro-triangulo { fill: var(--c); fill-opacity: .4; stroke: rgba(255,255,255,.25); stroke-width: .4; stroke-linejoin: round; }
+.casilla-cielo { fill: var(--c); fill-opacity: .55; stroke: #fff; stroke-width: .4; }
+.estrella-cielo path { fill: #fff4cf; stroke: var(--s-dorado); stroke-width: .5; }
+.pq-ficha { cursor: default; outline: none; }
+.ficha-halo { fill: none; stroke: #fff; stroke-width: .7; opacity: 0; }
+.ficha-base { stroke: rgba(255,255,255,.85); stroke-width: .55; }
+.ficha-anillo { fill: none; stroke: rgba(0,0,0,.28); stroke-width: .5; }
+.ficha-brillo { fill: rgba(255,255,255,.85); }
+.pq-ficha.movible { cursor: pointer; }
+.pq-ficha.movible .ficha-halo { opacity: 1; animation: s-halo 1s ease-in-out infinite; transform-origin: 0 0; }
+.pq-ficha.seleccionada .ficha-halo { opacity: 1; stroke: var(--s-dorado); stroke-width: 1.2; animation: none; }
+@keyframes s-halo { 0% { transform: scale(.75); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+.pq-ficha.moviendo { filter: drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+.destino circle { fill: rgba(255,255,255,.15); stroke: #fff; stroke-width: .6; stroke-dasharray: 1.5 1; }
+.destino text { fill: #fff; font-size: 4px; font-weight: 900; pointer-events: none; }
+.destino.tenue { opacity: .55; pointer-events: none; }
+.destino.tenue circle { r: 2.2px; fill: rgba(255,255,255,.6); stroke: none; }
+.destino.activo { cursor: pointer; animation: s-destino 1s ease-in-out infinite; }
+.destino-a.activo circle { fill: rgba(244,198,68,.6); stroke: #f4c644; }
+.destino-b.activo circle { fill: rgba(67,137,245,.6); stroke: var(--s-azul); }
+.destino-ambos.activo circle { fill: rgba(230,198,111,.65); stroke: #fff4cf; }
+@keyframes s-destino { 50% { opacity: .7; } }
+
+.zona-dados { display: grid; justify-items: center; gap: 10px; padding: 14px; border-radius: 18px; background: var(--s-panel); border: 1px solid var(--s-borde); }
+.btn-tirar { width: 100%; padding: 16px; font: 1.3rem var(--s-titulo); border-radius: 16px; border: 0; color: #10170f; cursor: pointer;
+  background: linear-gradient(180deg, var(--cn), var(--c)); box-shadow: 0 0 22px color-mix(in srgb, var(--c) 55%, transparent), inset 0 -5px 0 rgba(0,0,0,.22); transition: transform .12s, opacity .2s; }
+.btn-tirar:not(:disabled) { animation: s-pulso 1.6s ease-in-out infinite; }
+.btn-tirar:disabled { opacity: .35; animation: none; cursor: not-allowed; }
+.resultado { min-height: 32px; display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 1.1rem; }
+.suma.par b, .es-par { color: #fff4cf; text-shadow: 0 0 10px var(--s-dorado), 0 0 22px var(--s-dorado-2); font-family: var(--s-titulo); font-weight: 400; animation: s-par .7s ease-out; display: inline-block; }
+@keyframes s-par { 0% { transform: scale(.3) rotate(-12deg); } 60% { transform: scale(1.4) rotate(6deg); } 100% { transform: scale(1); } }
+.chip-dado { padding: 5px 11px; border-radius: 10px; font-weight: 900; }
+.chip-a { background: rgba(244,198,68,.18); border: 2px solid #f4c644; }
+.chip-b { background: rgba(67,137,245,.18); border: 2px solid var(--s-azul); }
+.chip-dado.usado { opacity: .3; text-decoration: line-through; }
+.pista { margin: 0; color: var(--s-tenue); font-size: .9rem; text-align: center; min-height: 1.2em; }
+.dados { display: flex; gap: 26px; justify-content: center; padding: 16px 0 6px; perspective: 600px; }
+.dado { position: relative; width: 58px; height: 58px; }
+.sombra-dado { position: absolute; left: 6px; right: 6px; bottom: -12px; height: 10px; border-radius: 50%; background: rgba(0,0,0,.45); filter: blur(4px); }
+.cubo { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .25s; }
+.cara { position: absolute; inset: 0; border-radius: 11px; background: linear-gradient(145deg, #fffdf6, #ece4cc); display: grid;
+  grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); padding: 8px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08), inset -3px -4px 8px rgba(0,0,0,.12); }
+.pip { width: 11px; height: 11px; border-radius: 50%; margin: auto; background: radial-gradient(circle at 35% 35%, #2f5a45, #0b1d15); }
+.cara-frente { transform: translateZ(29px); } .cara-atras { transform: rotateY(180deg) translateZ(29px); }
+.cara-derecha { transform: rotateY(90deg) translateZ(29px); } .cara-izquierda { transform: rotateY(-90deg) translateZ(29px); }
+.cara-arriba { transform: rotateX(90deg) translateZ(29px); } .cara-abajo { transform: rotateX(-90deg) translateZ(29px); }
+.dados.brilla-par .cara { box-shadow: 0 0 18px var(--s-dorado), inset 0 0 0 2px var(--s-dorado); }
+.panel-jugadores { background: var(--s-panel); border: 1px solid var(--s-borde); border-radius: 18px; padding: 14px; }
+.panel-jugadores ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.fila-jugador { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 12px; background: rgba(0,0,0,.22); border: 2px solid transparent; transition: all .25s; }
+.fila-jugador.de-turno { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 35%, transparent); }
+.fila-jugador .pos { width: 18px; color: var(--s-tenue); font-size: .85rem; text-align: center; }
+.estrellas { color: var(--cn); letter-spacing: 1px; font-size: .95rem; }
+.contador-shots { font-weight: 900; padding: 3px 8px; border-radius: 9px; background: rgba(255,255,255,.07); white-space: nowrap; }
+.contador-shots.con-shots { background: rgba(230,198,111,.18); color: #fff4cf; }
+.solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ── Modal del shot (lo ven todos) ── */
+.modal-shot { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; color: var(--s-texto); font-family: var(--s-cuerpo); font-weight: 700;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--c) 28%, rgba(9,26,20,.92)), rgba(9,26,20,.96)); opacity: 0; transition: opacity .25s; }
+.modal-shot.abierto { opacity: 1; }
+.modal-contenido { width: min(440px, 100%); text-align: center; display: grid; justify-items: center; gap: 10px; transform: scale(.9); transition: transform .3s cubic-bezier(.3,1.6,.5,1); }
+.modal-shot.abierto .modal-contenido { transform: scale(1); }
+.shot-titulo { font-size: clamp(1.4rem, 7vw, 2.1rem); line-height: 1.1; margin: 0; color: #fff; text-shadow: 0 0 10px var(--c), 0 0 28px var(--c); }
+.shot-razon { margin: 0; color: var(--s-tenue); font-size: 1.02rem; }
+.vaso { width: 170px; height: 210px; overflow: visible; }
+.vaso-vidrio { fill: rgba(255,255,255,.08); stroke: rgba(255,255,255,.85); stroke-width: 3; stroke-linejoin: round; }
+.vaso-reflejo { fill: rgba(255,255,255,.35); }
+.vaso-guaro .liq-arriba { stop-color: #fff8d6; } .vaso-guaro .liq-abajo { stop-color: #f4c644; }
+.vaso-agua .liq-arriba { stop-color: #d6f1ff; } .vaso-agua .liq-abajo { stop-color: #4389f5; }
+.vaso-guaro .ola { fill: #fff8d6; } .vaso-agua .ola { fill: #d6f1ff; }
+.liquido, .ola { transform: translateY(120px); }
+.llenando .liquido { animation: s-llenar 1.2s cubic-bezier(.4,0,.3,1) forwards; }
+.llenando .ola { animation: s-llenar 1.2s cubic-bezier(.4,0,.3,1) forwards, s-ola 1.2s linear infinite; }
+@keyframes s-llenar { to { transform: translateY(6px); } }
+@keyframes s-ola { from { translate: 0 0; } to { translate: -30px 0; } }
+.burbuja { fill: rgba(255,255,255,.75); opacity: 0; }
+.llenando .burbuja { animation: s-burbuja 1.4s ease-in .4s infinite; }
+.burbuja.b1 { animation-delay: .7s !important; } .burbuja.b2 { animation-delay: .9s !important; } .burbuja.b3 { animation-delay: 1.15s !important; } .burbuja.b4 { animation-delay: .55s !important; }
+@keyframes s-burbuja { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-90px); } }
+.vaso-cuerpo { transform-origin: 60px 130px; transform-box: view-box; transition: transform .7s cubic-bezier(.5,0,.3,1); }
+.tomando .vaso-cuerpo { transform: rotate(-58deg) translate(-8px, -14px); }
+.tomando .liquido, .tomando .ola { animation: s-vaciar .9s ease-in .25s forwards !important; transform: translateY(6px); }
+@keyframes s-vaciar { to { transform: translateY(125px); } }
+.cuenta { font: 3.3rem var(--s-titulo); min-height: 4rem; color: #fff; text-shadow: 0 0 14px var(--c), 0 0 32px var(--c); }
+.cuenta.pop { animation: s-pop .55s cubic-bezier(.3,1.7,.5,1); }
+.cuenta.salud { color: #fff4cf; text-shadow: 0 0 12px var(--s-dorado), 0 0 32px var(--s-dorado-2); }
+@keyframes s-pop { from { transform: scale(2.2); opacity: 0; } }
+.reto { padding: 24px 18px; border-radius: 18px; background: rgba(0,0,0,.35); border: 2px dashed var(--s-azul); max-width: 320px; }
+.reto-emoji { font-size: 3rem; }
+.reto p { font-size: 1.2rem; margin: 8px 0 0; }
+.elegir-lista { display: grid; gap: 10px; width: 100%; margin-top: 8px; }
+.salas-raiz .btn-jugador { background: color-mix(in srgb, var(--c) 28%, transparent); border: 2px solid var(--c); }
+.salas-raiz .btn-jugador:disabled { opacity: .55; }
+.salas-raiz .btn-jugador.elegido { opacity: 1; box-shadow: 0 0 18px var(--c); }
+.modal-fin .trofeo { font-size: 4rem; animation: s-bailar 1.6s ease-in-out infinite; }
+@keyframes s-bailar { 50% { transform: rotate(8deg) translateY(-6px); } }
+.tabla-final { list-style: none; padding: 0; margin: 6px 0; width: 100%; display: grid; gap: 6px; }
+.tabla-final li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.3); }
+.tabla-final li b { flex: 1; text-align: left; }
+.fila-botones { display: flex; gap: 10px; margin-top: 12px; width: 100%; align-items: center; }
+.fila-botones .btn { flex: 1; }
+
+/* ── Efectos ── */
+.letrero { position: fixed; left: 50%; top: 38%; z-index: 55; pointer-events: none; width: max-content; max-width: 92vw; text-align: center; line-height: 1.1;
+  font: clamp(1.3rem, 6.5vw, 2.6rem) var(--s-titulo); color: #fff; text-shadow: 0 0 10px var(--c), 0 0 28px var(--c), 0 4px 0 rgba(0,0,0,.4);
+  transform: translate(-50%, -50%); animation: s-letrero 1.3s cubic-bezier(.3,1.5,.5,1) forwards; }
+@keyframes s-letrero { 0% { transform: translate(-50%, -50%) scale(.2) rotate(-8deg); opacity: 0; } 25% { transform: translate(-50%, -50%) scale(1.15) rotate(2deg); opacity: 1; }
+  40% { transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; } 100% { transform: translate(-50%, -70%) scale(.95); opacity: 0; } }
+.aviso-turno { position: fixed; inset: auto 0 18%; z-index: 55; pointer-events: none; display: grid; justify-items: center; animation: s-aviso 1.1s ease-out forwards; font-family: var(--s-cuerpo); }
+.aviso-turno small { color: var(--s-tenue); font-size: 1rem; font-weight: 800; }
+.aviso-turno b { font: 2rem var(--s-titulo); color: var(--cn); text-shadow: 0 0 12px var(--c), 0 0 28px var(--c); }
+@keyframes s-aviso { 0% { opacity: 0; transform: translateY(20px); } 20%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.confeti { position: fixed; inset: 0; pointer-events: none; z-index: 70; overflow: hidden; }
+.confeti i { position: absolute; border-radius: 2px; animation: s-confeti var(--t) cubic-bezier(.2,.6,.4,1) forwards; }
+@keyframes s-confeti { to { transform: translate(var(--dx), calc(var(--dy) + 420px)) rotate(var(--r)); opacity: 0; } }
+.toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 80; max-width: 92vw; padding: 12px 18px; border-radius: 14px;
+  background: #12301f; color: var(--s-texto); font: 700 .95rem var(--s-cuerpo); border: 1px solid var(--s-borde); box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  transform: translate(-50%, 30px); opacity: 0; transition: all .25s; }
+.toast.visible { transform: translate(-50%, 0); opacity: 1; }
+.toast.error { border-color: var(--s-rojo); }
+
+/* ── Recuadro "REGLAS DEL JUEGO" (al lado del tablero; debajo en pantallas chicas) ── */
+.salas-raiz .reglas-juego { padding: 14px 16px; }
+.salas-raiz .reglas-titulo { margin: 0; font-family: var(--s-titulo); font-weight: 400; color: var(--s-dorado);
+  letter-spacing: .08em; font-size: 1.05rem; display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; list-style: none; padding: 2px 0; border-radius: 8px; }
+.salas-raiz .reglas-titulo::-webkit-details-marker, .salas-raiz .regla > summary::-webkit-details-marker { display: none; }
+.salas-raiz .reglas-titulo:focus-visible, .salas-raiz .regla > summary:focus-visible { outline: 2px solid var(--s-dorado); outline-offset: 2px; }
+.salas-raiz .reglas-flecha { transition: transform .2s; }
+.salas-raiz .reglas-juego[open] .reglas-flecha { transform: rotate(180deg); }
+.salas-raiz .reglas-juego[open] > .reglas-titulo { margin-bottom: 4px; }
+.salas-raiz .regla > summary { cursor: pointer; list-style: none; font-size: .9rem; font-weight: 800; color: var(--s-texto);
+  display: flex; justify-content: space-between; padding: 2px 0; }
+.salas-raiz .regla > summary::after { content: '▸'; color: var(--s-tenue); transition: transform .2s; }
+.salas-raiz .regla[open] > summary::after { transform: rotate(90deg); }
+.salas-raiz .regla[open] > summary { margin-bottom: 4px; }
+.salas-raiz .reglas-nivel { margin: 4px 0 8px; color: var(--s-tenue); font-size: .85rem; }
+.salas-raiz .reglas-nivel b { color: var(--s-texto); }
+.salas-raiz .regla { border-top: 1px solid var(--s-borde); padding: 8px 0 2px; }
+.salas-raiz .regla ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.salas-raiz .regla li { font-size: .84rem; font-weight: 600; color: var(--s-tenue); line-height: 1.35; }
+.salas-raiz .reglas-shots { list-style: none; padding-left: 0 !important; margin-bottom: 6px !important; }
+.salas-raiz .reglas-shots li { display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+  padding: 4px 8px; border-radius: 8px; background: rgba(0,0,0,.2); color: var(--s-texto); }
+.salas-raiz .reglas-shots small { color: var(--s-tenue); font-weight: 600; }
+.salas-raiz .reglas-shots b { color: var(--s-dorado); white-space: nowrap; }
+.salas-raiz .reglas-nota { margin: 2px 0 6px; font-size: .8rem; color: var(--s-tenue); font-weight: 600; }
+
+@media (min-width: 860px) {
+  .juego-cuerpo { grid-template-columns: minmax(0, 1fr) 330px; align-items: start; }
+  .marco-tablero { max-width: min(100%, 80dvh); }
+  /* Sin sticky aquí: las reglas van debajo en la misma columna y, al desplegarlas, la tabla fija se les montaba encima */
+  .columna-lateral { position: relative; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .columna-lateral > * { min-width: 0; }                       /* nada se sale de su columna */
+  .columna-tablero { grid-row: 1 / span 2; }                   /* el tablero ocupa dos filas… */
+  .columna-reglas { grid-column: 2; grid-row: 2; min-width: 0; } /* …y las reglas quedan justo debajo de la tabla */
+}
+@media (min-width: 1700px) {                                   /* pantalla MUY ancha: tercera columna al lado */
+  .juego-cuerpo { grid-template-columns: minmax(0, 1fr) 320px 300px; }
+  .columna-tablero { grid-row: 1; }
+  .columna-lateral { position: sticky; top: 0; }               /* aquí sí: las reglas tienen su propia columna */
+  .columna-reglas { grid-column: 3; grid-row: 1; position: sticky; top: 0; }
+  .columna-reglas .reglas-juego { max-height: calc(100dvh - 120px); overflow-y: auto; }
+}
+@media (max-width: 859px) { .columna-lateral { display: grid; gap: 14px; } .sala-marca { display: none; } }
+@media (max-width: 380px) { .salas-raiz .codigo span { width: 36px; height: 48px; font-size: 1.5rem; } .dados { gap: 18px; } }
+@media (prefers-reduced-motion: reduce) {
+  .salas-raiz *, .letrero, .aviso-turno, .confeti i { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Jugador que se fue de la sala: fichas, casa y fila en gris (se salta su turno) */
+.salas-raiz .pq-ficha.fuera { filter: grayscale(1) brightness(.75); opacity: .55; pointer-events: none; }
+.salas-raiz .carcel.fuera { filter: grayscale(1); opacity: .5; }
+.salas-raiz .fila-jugador.fuera { filter: grayscale(1); opacity: .55; }
+.salas-raiz .fila-jugador .salio { color: var(--s-tenue); font-weight: 700; }
+
+/* La salida también es seguro: escudo pequeño en la esquina de la casilla SALE */
+.salas-raiz .seguro-salida { opacity: .9; }
+
+/* La fila de la tabla nunca se sale de su columna: el nombre se recorta con "…" */
+.salas-raiz .fila-jugador { min-width: 0; }
+.salas-raiz .fila-jugador .jugador-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.salas-raiz .fila-jugador .estadistica, .salas-raiz .fila-jugador .contador-shots { flex: 0 0 auto; }

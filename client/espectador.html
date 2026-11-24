@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GUARO ROYAL | Modo espectador</title>
+
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/salas.css">
+  <link rel="stylesheet" href="css/chat.css">
+  <link rel="stylesheet" href="css/espectador.css">
+</head>
+
+<!-- MODO ESPECTADOR (examen final, track secundario): sin iniciar sesión, sin controles.
+     Se conecta por WebSocket a /spectate del coordinador (ruta distinta de /connect de los jugadores). -->
+<body class="pagina-juego modo-espectador">
+
+  <div class="franja">
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+
+  <div class="cinta-espectador" role="status">👁 MODO ESPECTADOR · solo puedes mirar</div>
+
+  <main class="contenedor ancho">
+
+    <header class="cabecera">
+
+      <div class="titulo-sala">
+        <div class="marca">EL JUEGO DE SIEMPRE</div>
+
+        <h1>GUARO <span>ROYAL</span></h1>
+
+        <span class="estado">
+          <span id="punto" class="punto"></span>
+          <span id="estado">Conectando…</span>
+        </span>
+
+        <span id="coordBadge" class="coord-badge sin">Coordinador: —</span>
+        <span class="coord-badge badge-espectador">👁 MODO ESPECTADOR</span>
+      </div>
+
+      <a class="boton boton-dorado esp-login" href="login.html">Iniciar sesión para jugar</a>
+
+    </header>
+
+    <div class="juego">
+
+      <!-- MUNDO: lo mismo que ven los jugadores, sin controles -->
+      <section class="tarjeta tarjeta-canvas">
+
+        <div class="encabezado-panel">
+          <div>
+            <span class="tipo-formulario">ZONA DE JUEGO</span>
+            <h2>El tablero</h2>
+          </div>
+
+          <span class="etiqueta-tablero etiqueta-espectador">MODO ESPECTADOR</span>
+        </div>
+
+        <canvas id="mundo" width="960" height="600" aria-label="Mundo del juego (solo mirar)"></canvas>
+
+        <p class="ayuda">
+          Estás mirando el juego en vivo. Los espectadores no pueden mover fichas ni personajes.
+        </p>
+
+      </section>
+
+      <!-- PANEL LATERAL -->
+      <aside class="panel">
+
+        <section class="tarjeta">
+          <span class="tipo-formulario">PARQUÉS</span>
+          <h2>Partidas para mirar</h2>
+          <p class="descripcion">Elige una partida pública, o escribe el código de una privada.</p>
+          <div id="partidas" class="salas-panel"><p class="vacio">Conectando…</p></div>
+          <form id="formCodigo" class="salas-unirse-form esp-codigo">
+            <input id="codigo" class="salas-codigo" maxlength="6" placeholder="CÓDIGO" autocomplete="off" aria-label="Código de una partida privada">
+            <button class="boton salas-unirse" type="submit">Mirar</button>
+          </form>
+        </section>
+
+        <section class="tarjeta">
+          <span class="tipo-formulario">EN VIVO</span>
+          <h2 class="titulo-jugadores">
+            Jugadores en línea
+            <span id="contador" class="contador"></span>
+          </h2>
+          <ul id="jugadores" class="jugadores">
+            <li class="vacio">Esperando al servidor…</li>
+          </ul>
+        </section>
+
+      </aside>
+
+    </div>
+
+    <footer class="pie pie-juego">
+      <span>GUARO ROYAL</span>
+      <span>•</span>
+      <span>Modo espectador</span>
+    </footer>
+
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth-client.js"></script>
+  <script type="module" src="js/espectador.js"></script>
+
+</body>
+</html>

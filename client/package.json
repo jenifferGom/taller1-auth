@@ -1,9 +1,15 @@
 {
+  "name": "client",
+  "version": "1.0.0",
+  "description": "Cliente web (HTML + JS plano): login/registro y lobby con jugadores en línea",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "bcrypt": "^6.0.0",
-    "better-sqlite3": "^13.0.3",
-    "dotenv": "^18.0.9",
-    "express": "^5.3.0",
-    "jsonwebtoken": "^9.0.3"
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0"
   }
 }
