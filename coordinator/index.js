@@ -9,6 +9,9 @@ const express = require('express');
 const http    = require('http');
 const jwt     = require('jsonwebtoken');
 const { WebSocketServer, WebSocket } = require('ws');
+const { crearParques } = require('./parques');   // Guaro Royal: salas y partidas de parqués
+const { crearChat } = require('./chat');                   // Examen final · track principal: chat distribuido
+const { crearEspectadores } = require('./espectadores');   // Examen final · track secundario: modo espectador
 
 // ───────── 1. Configuración ─────────
 const COORDINATOR_ID = (process.argv[2] || process.env.COORDINATOR_ID || '').trim();   // único en el mesh: coord-a, coord-b...
@@ -22,7 +25,13 @@ const PEER_PING_MS   = parseInt(process.env.PEER_PING_MS, 10) || 5000;          
 const SYNC_MS        = parseInt(process.env.SYNC_MS, 10) || 1000;                          // corrección de posiciones
 const JWT_SECRET     = process.env.JWT_SECRET;          // la MISMA que usa auth-service
 const HEARTBEAT_MS   = parseInt(process.env.HEARTBEAT_MS, 10) || 30000;    // ping/pong cada 30 s
-const AUTH_URL       = (process.env.AUTH_URL || '').replace(/\/$/, '');     // para la duración en vivo
+// Taller 7: hay VARIOS auth-services (un líder y réplicas). AUTH_URLS = todos, separados por coma.
+// (AUTH_URL, con uno solo, sigue funcionando.) Si uno no responde se prueba el siguiente; si una
+// réplica contesta "not_leader" se repite la petición contra leaderUrl (ver authFetch más abajo).
+const AUTH_URLS      = (process.env.AUTH_URLS || process.env.AUTH_URL || '').split(',')
+  .map(u => u.trim().replace(/\/+$/, '')).filter(Boolean);
+const AUTH_URL       = AUTH_URLS[0] || '';                                // solo para los mensajes de consola
+const AUTH_TIMEOUT_MS = parseInt(process.env.AUTH_TIMEOUT_MS, 10) || 4000;
 const POLICY_POLL_MS = parseInt(process.env.POLICY_POLL_MS, 10) || 3000;
 const STARTED_AT     = Date.now();
 
@@ -34,8 +43,8 @@ if (!/^[\w.-]{1,64}$/.test(COORDINATOR_ID)) {
   console.error('Falta el nombre del coordinador: npm run start:a, o npm start -- mi-nombre (letras, números, . _ -; máx. 64)');
   process.exit(1);
 }
-if (!AUTH_URL) {
-  console.error('AUTH_URL falta en el .env: el auth-service es también el directorio (heartbeat, /peers)');
+if (!AUTH_URLS.length) {
+  console.error('AUTH_URLS falta en el .env: las URLs de los auth-services (son también el directorio: heartbeat, peers)');
   process.exit(1);
 }
 if (!/^wss?:\/\//i.test(PUBLIC_URL)) {
@@ -102,6 +111,57 @@ function authNow() {
 // Se envía al navegador como tiempo RESTANTE, para que no dependa del reloj de ese equipo.
 function remainingMs(exp) {
   return Math.max(0, Math.round(exp * 1000 - authNow()));
+}
+
+// ───────── 2b. Hablar con los auth-services (Taller 7) ─────────
+// authFetch prueba los auth en orden (primero el último que respondió bien):
+//   · error de red, timeout, 5xx o una respuesta que no es JSON (p. ej. túnel de ngrok caído) → el siguiente
+//   · 503 not_leader  → repite la petición directamente contra leaderUrl (es el líder; las escrituras van allí)
+//   · 503 no_leader   → hay una elección en curso: prueba el siguiente (y si ninguno puede, falla y el ciclo reintenta)
+// Devuelve la Response; lanza error si ningún auth pudo atender.
+let authPreferred = null;
+let authLeaderLogged = null;
+const authBase = () => authPreferred || AUTH_URL;
+
+async function authFetchOnce(base, pathname, options) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), AUTH_TIMEOUT_MS);
+  try {
+    return await fetch(base + pathname, { ...options, signal: ctl.signal,
+      headers: { 'ngrok-skip-browser-warning': 'true', ...(options.headers || {}) } });
+  } finally { clearTimeout(timer); }
+}
+
+async function authFetch(pathname, options = {}) {
+  const queue = [...new Set([authPreferred, ...AUTH_URLS].filter(Boolean))];
+  const tried = new Set();
+  let lastErr = new Error('ningún auth-service respondió');
+  while (queue.length) {
+    const base = queue.shift();
+    if (tried.has(base)) continue;
+    tried.add(base);
+    let res;
+    try { res = await authFetchOnce(base, pathname, options); }
+    catch (err) { lastErr = new Error(`${base}: ${err.name === 'AbortError' ? 'no respondió a tiempo' : err.message}`); continue; }
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    if (!isJson && res.status >= 400) { lastErr = new Error(`${base}: HTTP ${res.status} sin JSON (¿túnel caído?)`); continue; }
+    if (res.status === 503) {
+      const body = await res.clone().json().catch(() => ({}));
+      if (body.error === 'not_leader' && body.leaderUrl) {
+        const lb = String(body.leaderUrl).replace(/\/+$/, '');
+        if (!tried.has(lb)) queue.unshift(lb);                  // directo al líder
+        lastErr = new Error(`${base} es réplica`);
+        continue;
+      }
+      if (body.error === 'no_leader') { lastErr = new Error(`${base}: no hay líder (elección en curso)`); continue; }
+    } else if (res.status >= 500) { lastErr = new Error(`${base}: HTTP ${res.status}`); continue; }
+    if (authPreferred !== base) {
+      console.log(`[auth] usando ${base}${res.headers.get('x-auth-id') ? ` (${res.headers.get('x-auth-id')}, ${res.headers.get('x-auth-role')})` : ''}`);
+      authPreferred = base;
+    }
+    return res;
+  }
+  throw lastErr;
 }
 
 // ───────── 3. Envío de mensajes ─────────
@@ -226,10 +286,10 @@ function sendSessionUpdate(ws, message, refresh = false) {
 async function pollSessionPolicy() {
   try {
     const t0   = Date.now();
-    const res  = await fetch(`${AUTH_URL}/session-policy`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    const res  = await authFetch('/session-policy');
     const data = await res.json();
     const t1   = Date.now();
-    if (policy.reachable === false) console.log(`[sesión] ${AUTH_URL} responde de nuevo`);
+    if (policy.reachable === false) console.log(`[sesión] ${authBase()} responde de nuevo`);
     policy.reachable = true;
 
     // Diferencia de reloj: la hora del auth comparada con la mitad del viaje de ida y vuelta
@@ -268,7 +328,7 @@ async function pollSessionPolicy() {
   } catch (err) {
     // Solo se avisa una vez; se sigue reintentando cada POLICY_POLL_MS
     if (policy.reachable !== false) {
-      console.log(`[sesión] No se pudo consultar ${AUTH_URL}/session-policy (${err.message}). Se reintentará`);
+      console.log(`[sesión] No se pudo consultar /session-policy en ningún auth (${err.message}). Se reintentará`);
     }
     policy.reachable = false;
   }
@@ -367,12 +427,14 @@ app.get('/', (_req, res) => res.json({
   service: 'coordinator',
   message: 'Coordinador del juego en línea',
   websocket: 'ws://HOST/connect?token=TU_TOKEN (wss:// si es por ngrok)',
+  spectator: 'ws://HOST/spectate (sin token, solo mirar)',
   world: { width: WORLD_WIDTH, height: WORLD_HEIGHT, playerRadius: PLAYER_RADIUS, tickRate: TICK_RATE },
   clientMessages: CLIENT_MESSAGES,
   http: { 'GET /health': 'Estado del servicio', 'GET /players': 'Jugadores del mundo (locales y remotos)', 'GET /mesh': 'Estado del mesh' },
 }));
 app.get('/health',  (_req, res) => res.json({ status: 'ok', message: 'coordinator funcionando', coordinatorId: COORDINATOR_ID,
   connectedPlayers: localCount(), worldPlayers: players.size, peers: [...peers.keys()],
+  spectators: espectadores.cuantos(), spectatorsMax: espectadores.max,   // aparte: no cuentan como jugadores
   sessionPolicy: policy.label || 'sin consultar' }));
 app.get('/players', (_req, res) => res.json({ coordinatorId: COORDINATOR_ID, players: playersList(),
   message: `${players.size} jugador(es) en el mundo, ${localCount()} conectados aquí` }));
@@ -383,7 +445,7 @@ app.get('/mesh', (_req, res) => res.json({
 }));
 app.use((req, res) => res.status(404).json({
   error: 'not_found', message: `No existe ${req.method} ${req.path}`,
-  hint: 'Rutas HTTP: GET /, GET /health, GET /players, GET /mesh. WebSocket: /connect?token=...',
+  hint: 'Rutas HTTP: GET /, GET /health, GET /players, GET /mesh. WebSocket: /connect?token=... y /spectate',
 }));
 
 // El token se valida en el UPGRADE, antes de que el socket entre a 'connection'.
@@ -391,6 +453,9 @@ server.on('upgrade', (req, socket, head) => {
   const url    = new URL(req.url, `http://${req.headers.host}`);
   if (url.pathname === '/peer') {                     // otro coordinador (mesh): misma URL, otra ruta
     return peerWss.handleUpgrade(req, socket, head, (ws) => setupPeerSocket(ws, false));
+  }
+  if (url.pathname === '/spectate') {                 // espectador: SIN token, conexión aparte de los jugadores
+    return espectadores.handleUpgrade(req, socket, head);
   }
   const result = url.pathname === '/connect' ? verifyToken(url.searchParams.get('token')) : null;
 
@@ -438,6 +503,8 @@ wss.on('connection', (ws, payload) => {
     expiresInMs: remainingMs(exp),
     clientMessages: CLIENT_MESSAGES,
   });
+  parques.alBienvenida(ws, userId);      // si estaba en una sala (recarga, otro coordinador), se la manda
+  chat.alConectarCliente(ws, userId);    // los últimos mensajes del chat general (y de su sala, si está en una)
 
   // Heartbeat: marcamos vivo al conectar y cada vez que responde un pong
   ws.isAlive = true;
@@ -480,6 +547,8 @@ wss.on('connection', (ws, payload) => {
 
     const p = players.get(userId);
     if (!p || p.socket !== ws) return;        // conexión ya reemplazada o cerrándose
+    if (chat.alMensajeCliente(ws, userId, username, msg)) return;      // chat_send
+    if (parques.alMensajeCliente(ws, userId, username, msg)) return;   // mensajes de salas y partidas
 
     switch (msg.type) {
       case 'intent':
@@ -491,6 +560,7 @@ wss.on('connection', (ws, payload) => {
       case 'get_players':
         return send(ws, { type: 'players_update', players: playersList(), message: `${players.size} jugador(es) en línea` });
       case 'logout':
+        parques.alLogout(userId, username);
         send(ws, { type: 'logout_ok', message: `Sesión de ${username} cerrada. ¡Hasta pronto!` });
         return ws.close(1000, 'logout');
       case 'rebalance_cancel':                          // el auth le dijo quedarse aquí: puede volver a moverse
@@ -506,6 +576,7 @@ wss.on('connection', (ws, payload) => {
 
   ws.on('close', () => {
     clearTimeout(ws.expiryTimer);
+    if (players.get(userId)?.socket === ws) parques.alDesconectar(userId);   // deja de buscar partida
     removePlayer(userId, username, ws);
     sendHeartbeat();                     // carga actualizada en el directorio de inmediato
   });
@@ -538,6 +609,7 @@ function tick() {
   }
 
   if (localCount()) broadcast({ type: 'state', t: now, coordinatorId: COORDINATOR_ID, players: snapshot() });
+  espectadores.tick(now, snapshot);      // a los espectadores, a menor frecuencia y serializado una sola vez
 }
 
 setInterval(tick, TICK_MS);
@@ -575,6 +647,43 @@ function replicate(payload) {
   const raw = JSON.stringify({ ...payload, origin: COORDINATOR_ID });
   for (const { ws } of peers.values()) if (ws.readyState === WebSocket.OPEN) ws.send(raw);
 }
+
+// Guaro Royal: salas y partidas de parqués (coordinator/parques). Usa el mismo Map de jugadores,
+// el mismo mesh y el mismo replicate(); solo se le pasan los mensajes de salas.
+const parques = crearParques({ COORDINATOR_ID, players, peers, replicate, send, WebSocket });
+Object.assign(CLIENT_MESSAGES, parques.mensajes);
+
+// Examen final: chat distribuido y modo espectador. Usan el mismo mesh (replicate / un peer) y el mismo
+// game loop; los espectadores van en su propio conjunto, NUNCA en el Map de jugadores.
+function sendPeerTo(peerId, payload) {
+  const r = peers.get(peerId);
+  if (!r || r.ws.readyState !== WebSocket.OPEN) return false;
+  r.ws.send(JSON.stringify({ ...payload, origin: COORDINATOR_ID }));
+  return true;
+}
+const chat = crearChat({ COORDINATOR_ID, replicate, sendPeer: sendPeerTo, send,
+  // canal general: todos mis jugadores y espectadores
+  difundir: (payload) => { broadcast(payload); espectadores.difundir(payload); },
+  // canal de una sala: solo mis jugadores de esa sala y mis espectadores que la están mirando
+  entregarSala: (codigo, payload) => {
+    const sala = parques.rooms.salas.get(codigo);
+    if (sala) for (const j of sala.jugadores) {
+      if (j.fuera) continue;
+      const p = players.get(j.id);
+      if (p && p.socket) send(p.socket, payload);
+    }
+    espectadores.difundirSala(codigo, payload);
+  },
+  puedeEscribirSala: (userId, codigo) => { const s = parques.rooms.salaDe(userId); return !!s && s.codigo === codigo; },
+  salaDe: (userId) => { const s = parques.rooms.salaDe(userId); return s ? s.codigo : null; } });
+const espectadores = crearEspectadores({ COORDINATOR_ID, rooms: parques.rooms, chat,
+  world: { width: WORLD_WIDTH, height: WORLD_HEIGHT, playerRadius: PLAYER_RADIUS, tickRate: TICK_RATE } });
+parques.onCambioSala((sala) => {
+  espectadores.alCambiarSala(sala);
+  if (sala && sala.estado === 'cerrada') chat.borrarCanal(`sala:${sala.codigo}`);   // el chat de la sala se va con ella
+});
+CLIENT_MESSAGES.chat_send = '{"type":"chat_send","text":"hola","canal":"general"} → chat (canal "general" o "sala:CODIGO" de tu partida; máx. 200 caracteres)';
+CLIENT_MESSAGES.chat_historial_pedir = '{"type":"chat_historial_pedir","canal":"sala:ABC234"} → historial del chat de tu partida';
 
 // Valida lo que llega de otro coordinador: no se confía en nadie, ni en el mesh
 function cleanDir(d) {
@@ -652,6 +761,8 @@ function handleHello(ws, msg) {
   removeRemotePlayersOf(id, false);                     // descarta fantasmas de una conexión anterior
   console.log(`[mesh] ✔ conectado con ${id} (${ws.outbound ? 'yo inicié' : 'él inició'}). Peers: ${[...peers.keys()].join(', ')}`);
   sendLocalSnapshot(ws);
+  parques.alConectarPeer(id);                           // le paso las salas que manejo yo
+  chat.alConectarPeer(id);                              // y mi historial de chat (él lo mezcla con el suyo)
 }
 
 function handlePeerMessage(ws, msg) {
@@ -663,6 +774,8 @@ function handlePeerMessage(ws, msg) {
   const origin = msg.origin;
   const userId = msg.userId !== undefined ? String(msg.userId) : null;
   const p = userId ? players.get(userId) : null;
+  if (parques.alMensajePeer(msg, origin)) return;       // salas y cola de partidas públicas
+  if (chat.alMensajePeer(msg, origin)) return;          // chat_msg y chat_historial
 
   switch (msg.type) {
     case 'intent_replicate':                            // se aplica a MI copia; solo el dueño la maneja
@@ -758,6 +871,7 @@ function setupPeerSocket(ws, outbound) {
     if (ws.peerId && peers.get(ws.peerId)?.ws === ws) {
       peers.delete(ws.peerId);
       removeRemotePlayersOf(ws.peerId);                 // sus jugadores ya no los puedo ver
+      parques.alPerderPeer(ws.peerId);                  // sus salas las adopta el vivo de id menor
       const motivo = `${code}${reason && reason.length ? ` ${reason}` : ''}`;   // ej: 1000 left directory
       console.log(`[mesh] ✘ se perdió ${ws.peerId} (cierre ${motivo}). Peers: ${[...peers.keys()].join(', ') || '(ninguno)'}`);
     }
@@ -783,9 +897,9 @@ function connectToPeer(id, url) {
 // GET /peers al arrancar y cada PEER_POLL_MS: abre conexiones a los nuevos y cierra las de los que desaparecieron
 async function discoverPeers() {
   try {
-    const res  = await fetch(`${AUTH_URL}/peers`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    const res  = await authFetch('/coordinator-peers');       // (antes /peers: ahora ese es de los auth-services)
     const data = await res.json();
-    if (!Array.isArray(data.peers)) throw new Error('respuesta sin "peers"');
+    if (!Array.isArray(data.peers)) throw new Error(data.error ? `${data.error}` : 'respuesta sin "peers"');
     knownPeers = new Map(data.peers.filter(x => x && x.coordinatorId !== COORDINATOR_ID && isWsUrlOk(x.peerUrl))
       .map(x => [x.coordinatorId, x.peerUrl]));              // cada coordinador se filtra a sí mismo
 
@@ -797,12 +911,15 @@ async function discoverPeers() {
       if (knownPeers.has(id)) continue;
       const n = (missed.get(id) || 0) + 1;
       missed.set(id, n);
-      if (n >= 2) { console.log(`[mesh] ${id} ya no está en /peers de ${AUTH_URL}: se cierra su conexión (si sigue encendido, revisa que use el MISMO AUTH_URL)`); r.ws.close(1000, 'left directory'); missed.delete(id); }
+      if (n >= 2) { console.log(`[mesh] ${id} ya no está en el directorio de ${authBase()}: se cierra su conexión (si sigue encendido, revisa que use los MISMOS AUTH_URLS)`); r.ws.close(1000, 'left directory'); missed.delete(id); }
     }
   } catch (err) {
+    // Sin directorio (p. ej. elección de líder en el auth) NO se toca el mesh: las conexiones siguen y
+    // los conteos de "ausente" empiezan de cero, para que un fallo corto no cierre a nadie por error
+    missed.clear();
     if (peerLogged.has('__dir')) return;
     peerLogged.add('__dir');
-    console.log(`[mesh] No se pudo consultar ${AUTH_URL}/peers (${err.message}). Se reintentará`);
+    console.log(`[mesh] No se pudo consultar el directorio de peers (${err.message}). El mesh sigue como está; se reintentará`);
     return;
   }
   peerLogged.delete('__dir');
@@ -841,9 +958,9 @@ function moverJugadores(n) {
 
 async function sendHeartbeat() {
   try {
-    const res = await fetch(`${AUTH_URL}/heartbeat`, {
+    const res = await authFetch('/heartbeat', {              // el heartbeat es una escritura: authFetch lo lleva al LÍDER
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ coordinatorId: COORDINATOR_ID, publicUrl: PUBLIC_URL, peerUrl: PEER_URL,
         connectedPlayers: localCount(), uptime: Math.floor((Date.now() - STARTED_AT) / 1000) }),
     });
@@ -855,10 +972,10 @@ async function sendHeartbeat() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json().catch(() => ({}));
     if (Number.isInteger(data.rebalance) && data.rebalance > 0) moverJugadores(data.rebalance);
-    if (directoryOk === false) console.log(`[directorio] ${AUTH_URL} responde de nuevo: heartbeat restablecido`);
+    if (directoryOk === false) console.log(`[directorio] ${authBase()} responde de nuevo: heartbeat restablecido`);
     directoryOk = true;
   } catch (err) {
-    if (directoryOk !== false) console.log(`[directorio] Heartbeat falló (${err.message}). Se reintenta cada ${DIRECTORY_HEARTBEAT_MS / 1000} s`);
+    if (directoryOk !== false) console.log(`[directorio] Heartbeat falló (${err.message}). Se reintenta cada ${DIRECTORY_HEARTBEAT_MS / 1000} s (los jugadores conectados siguen jugando)`);
     directoryOk = false;
   }
 }

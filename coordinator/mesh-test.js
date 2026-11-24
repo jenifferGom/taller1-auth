@@ -16,12 +16,21 @@ function check(name, cond, info) {
   if (cond) { passed++; console.log(`  ✔ ${name}`); }
   else { failed++; console.log(`  ✘ ${name}${info !== undefined ? `\n      recibido: ${JSON.stringify(info)}` : ''}`); }
 }
-const get = async (ruta) => { const r = await fetch(`${AUTH}${ruta}`, { headers: H }); return { status: r.status, data: await r.json() }; };
+// Taller 7: el auth puede ser una réplica. Si contesta 503 not_leader, se repite contra leaderUrl (como hace el cliente)
+async function authReq(ruta, opts = {}) {
+  let r = await fetch(`${AUTH}${ruta}`, { ...opts, headers: H });
+  if (r.status === 503) {
+    const d = await r.clone().json().catch(() => ({}));
+    if (d.error === 'not_leader' && d.leaderUrl) r = await fetch(`${d.leaderUrl.replace(/\/$/, '')}${ruta}`, { ...opts, headers: H });
+  }
+  return r;
+}
+const get = async (ruta) => { const r = await authReq(ruta); return { status: r.status, data: await r.json() }; };
 
 async function tokenPara(username) {
   const body = JSON.stringify({ username, password: 'secret123' });
-  await fetch(`${AUTH}/register`, { method: 'POST', headers: H, body });
-  const res = await fetch(`${AUTH}/login`, { method: 'POST', headers: H, body });
+  await authReq('/register', { method: 'POST', body });
+  const res = await authReq('/login', { method: 'POST', body });
   return (await res.json()).token;
 }
 
@@ -47,11 +56,11 @@ const ver = (c, username) => c.states[c.states.length - 1]?.players.find(p => p.
   console.log(`Auth: ${AUTH}\n`);
 
   console.log('1. Directorio');
-  const { data: peers } = await get('/peers');
+  const { data: peers } = await get('/coordinator-peers');
   const ids = peers.peers.map(p => p.coordinatorId).sort();
-  check('/peers lista al menos 3 coordinadores', ids.length >= 3, ids);
+  check('/coordinator-peers lista al menos 3 coordinadores', ids.length >= 3, ids);
   check('cada peer trae coordinatorId y peerUrl ws://', peers.peers.every(p => p.coordinatorId && /^wss?:\/\//.test(p.peerUrl)));
-  const hb = await fetch(`${AUTH}/heartbeat`, { method: 'POST', headers: H, body: JSON.stringify({ coordinatorId: 'x' }) });
+  const hb = await authReq('/heartbeat', { method: 'POST', body: JSON.stringify({ coordinatorId: 'x' }) });
   check('POST /heartbeat con body incompleto → 400', hb.status === 400, hb.status);
 
   console.log('\n2. Reparto de 4 clientes (GET /coordinator)');

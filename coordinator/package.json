@@ -1,17 +1,22 @@
 {
   "name": "coordinator",
   "version": "1.0.0",
-  "description": "",
+  "description": "Coordinador del juego: WebSocket autenticado con JWT, game loop a 20 Hz y estado replicado",
   "main": "index.js",
   "scripts": {
-  "start": "node index.js",
-  "test": "node test.js",
-  "test:mesh": "node mesh-test.js",
-  "start:a": "node index.js coord-a",
-  "start:b": "node index.js coord-b",
-  "start:c": "node index.js coord-c"
-},
-
+    "start": "node index.js",
+    "test": "node test.js",
+    "test:mesh": "node mesh-test.js",
+    "start:a": "node index.js coord-a",
+    "start:b": "node index.js coord-b",
+    "start:c": "node index.js coord-c",
+    "test:parques": "node parques-test.js",
+    "test:salas": "node salas-test.js http://localhost:4000 ws://localhost:5001 ws://localhost:5002",
+    "test:chat-unit": "node chat-unit-test.js",
+    "test:chat": "node chat-test.js http://localhost:4000 ws://localhost:5001 ws://localhost:5002 ws://localhost:5003",
+    "test:espectador": "node espectador-test.js http://localhost:4000 ws://localhost:5001 ws://localhost:5002",
+    "test:chat-sala": "node chat-sala-test.js http://localhost:4000 ws://localhost:5001 ws://localhost:5002 ws://localhost:5003"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
