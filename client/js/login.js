@@ -1,4 +1,4 @@
-// AUTH_URL viene de js/config.js
+// AUTH_URLS viene de js/config.js y authFetch de js/auth-client.js (varios auth-services: líder + réplicas)
 
 // Mensaje dejado por el lobby al cerrarse la conexión (se muestra una sola vez)
 const aviso = sessionStorage.getItem('aviso');
@@ -36,20 +36,20 @@ function mensajeAmigable(status, data) {
 }
 
 function sinConexion(err) {
-  console.error(`[auth] No se pudo conectar con ${AUTH_URL}:`, err);
+  console.error('[auth] No se pudo conectar con ningún auth-service:', err);
+  if (err && err.sinLider) return 'El sistema de autenticación está eligiendo líder (unos segundos). Inténtalo de nuevo.';
   return 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
 }
 
 // POST JSON al servicio de autenticación
 async function postAuth(ruta, body) {
-  const res = await fetch(`${AUTH_URL}${ruta}`, {
+  // authFetch prueba los auth-services en orden; una réplica redirige las escrituras al líder; y si hay
+  // una elección en curso (sin líder) insiste hasta 12 s: dura solo unos segundos
+  const res = await authFetch(ruta, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true',   // evita la página de aviso de ngrok en las peticiones
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }, 12000);
   const data = await res.json().catch(() => ({}));
   return { status: res.status, data };
 }
@@ -148,7 +148,7 @@ formUsername.addEventListener('submit', (e) => {
 async function iniciarBotonGoogle() {
   let clientId;
   try {
-    const res = await fetch(`${AUTH_URL}/auth/google/config`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    const res = await authFetch('/auth/google/config', {}, 8000);
     clientId = (await res.json()).clientId;
   } catch (err) {
     console.error('[google] No se pudo obtener el Client ID del auth:', err);
@@ -179,3 +179,12 @@ async function iniciarBotonGoogle() {
 }
 
 iniciarBotonGoogle();
+
+
+// ───── Taller 7: con qué auth-service se está hablando ─────
+// authFetch avisa cada vez que cambia el nodo que contesta (p. ej. cuando el líder se cae y entra otro).
+window.onAuthInfo = (info) => {
+  document.getElementById('authEtiqueta').textContent = `Auth: ${info.authId} (${info.role === 'leader' ? 'líder' : 'réplica'})`;
+};
+// Aunque nadie escriba nada, se consulta /status para mostrar el nodo desde el principio
+authFetch('/status').catch(() => { document.getElementById('authEtiqueta').textContent = 'Auth: sin conexión'; });

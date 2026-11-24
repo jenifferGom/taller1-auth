@@ -1,4 +1,4 @@
-// AUTH_URL viene de js/config.js. La URL del coordinador YA NO está fija: se le pregunta al auth (GET /coordinator).
+// AUTH_URLS viene de js/config.js y authFetch de js/auth-client.js. La URL del coordinador no está fija: se le pregunta al auth (GET /coordinator).
 //
 // Este archivo NO calcula posiciones. Solo:
 //   1. envía al servidor hacia dónde quiere moverse el jugador (mensaje "intent"),
@@ -247,7 +247,7 @@ async function pedirCoordinador() {
   const ahora = Date.now();
   for (const [id, hasta] of caidos) if (hasta <= ahora) caidos.delete(id);
   const excluir = caidos.size ? `?exclude=${encodeURIComponent([...caidos.keys()].join(','))}` : '';
-  const res = await fetch(`${AUTH_URL}/coordinator${excluir}`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+  const res = await authFetch(`/coordinator${excluir}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.publicUrl) {
     const err = new Error(data.error || `HTTP ${res.status}`);
@@ -266,7 +266,7 @@ async function conectar() {
     coordinadorActual = await pedirCoordinador();
   } catch (err) {
     console.warn('[juego] GET /coordinator falló:', err.message);
-    estado(err.sinCoordinadores ? 'No hay coordinadores disponibles. Reintentando…' : 'Sin conexión con el servidor. Reintentando…', 'off');
+    estado(err.sinCoordinadores ? 'No hay coordinadores disponibles. Reintentando…' : err.sinLider ? 'Los auth-services están eligiendo líder. Reintentando…' : 'Sin conexión con el servidor. Reintentando…', 'off');
     return reintentar();
   }
   console.log(`[juego] el auth asignó ${coordinadorActual.coordinatorId} (${coordinadorActual.publicUrl})`);
@@ -350,8 +350,20 @@ function abrirSocket() {
         pintarColores(msg.colors || []);
         estado(`Conectado a ${msg.coordinatorId}. ¡A jugar!`, 'on');
         canvas.focus();
+        aSalas(msg);                                    // salas de parqués (js/salas/online.js)
         break;
       }
+      case 'chat_historial':                            // chat distribuido: lo pinta js/chat.js
+      case 'chat_msg':
+      case 'chat_error':
+        aChat(msg);
+        break;
+      case 'salas_config':                              // salas de parqués: las maneja js/salas/online.js
+      case 'sala_estado':
+      case 'busqueda_estado':
+      case 'sala_error':
+        aSalas(msg);
+        break;
       case 'state':                                     // 20 veces por segundo
         lastState = msg;
         pintarJugadores(msg.players);
@@ -410,6 +422,25 @@ function abrirSocket() {
   };
 }
 
+// ───── Taller 7: a qué auth-service está conectado este cliente ─────
+// Se muestra el último auth que respondió (con su rol) y se refresca cada 3 s con GET /status: si ese
+// nodo se cae, authFetch pasa al siguiente y la etiqueta cambia sola. El juego NO depende de esto:
+// el coordinador valida el JWT sin consultar al auth, así que los que ya juegan no se desconectan.
+function mostrarAuth(info) {
+  const badge = document.getElementById('authBadge');
+  const texto = info ? `${info.authId} (${info.role === 'leader' ? 'líder' : 'réplica'})` : 'sin conexión';
+  document.getElementById('authNodo').textContent = texto;
+  badge.textContent = `Auth: ${texto}`;
+  badge.classList.toggle('sin', !info);
+}
+window.onAuthInfo = mostrarAuth;
+async function vigilarAuth() {
+  try { await authFetch('/status'); if (authInfo) mostrarAuth(authInfo); }
+  catch { mostrarAuth(null); }
+}
+vigilarAuth();
+setInterval(vigilarAuth, 3000);
+
 // ───── Arranque: login → pedir coordinador → conectar ─────
 conectar();
 
@@ -434,9 +465,34 @@ function enviarIntencion() {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'intent', intent: { dir } }));
 }
 
+// Salas de parqués (js/salas/online.js): se les pasan sus mensajes con un evento. El último de cada
+// tipo se guarda, por si llega antes de que el módulo termine de cargar (lo reproduce al arrancar).
+window.guaroUltimos = {};
+function aSalas(msg) {
+  if (msg.type !== 'sala_error') window.guaroUltimos[msg.type] = msg;
+  window.dispatchEvent(new CustomEvent('guaro:mensaje', { detail: msg }));
+}
+
+// Chat (js/chat-lobby.js): lo que llegue antes de que cargue el módulo se guarda y él lo reproduce
+window.guaroChatPendientes = [];
+function aChat(msg) {
+  if (window.guaroChatPendientes) { window.guaroChatPendientes.push(msg); return; }
+  window.dispatchEvent(new CustomEvent('guaro:chat', { detail: msg }));
+}
+
+// Las salas de parqués mandan sus mensajes por esta misma conexión
+window.enviarAlServidor = (obj) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  ws.send(JSON.stringify(obj));
+  return true;
+};
+
 window.addEventListener('keydown', (e) => {
   const accion = TECLAS[e.code];
   if (!accion) return;
+  // Escribiendo un código de sala, o con la sala de parqués abierta: el personaje no camina
+  if (e.target.closest && e.target.closest('input, textarea, select')) return;
+  if (document.body.classList.contains('en-sala')) return;
   e.preventDefault();                 // que las flechas no muevan la página
   presionadas.add(accion);
   enviarIntencion();
@@ -460,11 +516,11 @@ let tokenEnUso = token;
 // firmado). Le pedimos al auth uno nuevo con la duración vigente y se lo pasamos al coordinador.
 async function renovarToken() {
   try {
-    const res = await fetch(`${AUTH_URL}/refresh`, {
+    const res = await authFetch('/refresh', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: tokenEnUso }),
-    });
+    }, 8000);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.token) {
       console.warn('[juego] no se pudo renovar el token', res.status, data);

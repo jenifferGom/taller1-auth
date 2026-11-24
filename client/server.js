@@ -11,6 +11,6 @@ const app = express();
 app.use('/css', express.static(path.join(__dirname, 'css')));
 app.use('/js',  express.static(path.join(__dirname, 'js')));
 app.get('/', (_req, res) => res.redirect('/login.html'));
-app.get(['/login.html', '/lobby.html'], (req, res) => res.sendFile(path.join(__dirname, req.path)));
+app.get(['/login.html', '/lobby.html', '/espectador.html'], (req, res) => res.sendFile(path.join(__dirname, req.path)));   // espectador.html: modo espectador, sin sesión
 
 app.listen(PORT, () => console.log(`Cliente en http://localhost:${PORT}`));

@@ -1,20 +1,31 @@
 // ─────────────────────────────────────────────────────────────
-// Configuración del cliente: el ÚNICO lugar donde va una URL.
+// Configuración del cliente: el ÚNICO lugar donde van las URLs.
 // ─────────────────────────────────────────────────────────────
 //
-// Desde el Taller 6 el cliente YA NO conoce la URL del coordinador: se la pide al auth-service
-// (GET /coordinator) después del login, y el auth elige el coordinador vivo con menos jugadores.
-// Por eso solo hace falta AUTH_URL.
+// Desde el Taller 7 hay VARIOS auth-services (un líder y réplicas), en computadores distintos.
+// El cliente conoce la lista completa: prueba con uno y, si no responde, con el siguiente.
+// Si una réplica le dice "not_leader", repite la petición contra el líder (leaderUrl).
 //
-// Local:
-//   AUTH_URL = 'http://localhost:4000'
+// Una URL por auth-service (la de ngrok de cada computador). El orden no importa:
+//   const AUTH_URLS = [
+//     'https://aaaa.ngrok-free.dev',   // auth-a
+//     'https://bbbb.ngrok-free.dev',   // auth-b
+//     'https://cccc.ngrok-free.dev',   // auth-c
+//   ];
 //
-// Con ngrok (el auth tiene su propio túnel):
-//   AUTH_URL = 'https://xxxx.ngrok-free.dev'   ← túnel del puerto 4000
+// Local, con tres auth-services en este equipo (puertos 4001, 4002, 4003):
+//   const AUTH_URLS = ['http://localhost:4001', 'http://localhost:4002', 'http://localhost:4003'];
 //
-// Los coordinadores publican su propia URL pública (PUBLIC_URL en su .env), así que cada uno
-// necesita su túnel de ngrok y esa URL (wss://...) es la que llega al navegador.
+// Y con un solo auth-service (como antes): una sola URL en la lista.
+//
+// El cliente NO conoce los coordinadores: se los pide al auth (GET /coordinator) después del login.
 //
 // Después de cambiarla, recarga la página (Ctrl+F5).
 
-const AUTH_URL = 'https://episode-headrest-ocean.ngrok-free.dev';
+const AUTH_URLS = [
+  'https://episode-headrest-ocean.ngrok-free.dev', 
+  'https://employer-strategy-proponent.ngrok-free.dev',
+  'https://overbook-overplay-ranging.ngrok-free.dev'
+];
+
+const AUTH_URL = AUTH_URLS[0];   // compatibilidad: código que aún use un solo aut

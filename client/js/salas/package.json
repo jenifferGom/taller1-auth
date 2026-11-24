@@ -1,0 +1,6 @@
+{
+  "name": "guaro-royal-salas",
+  "private": true,
+  "type": "module",
+  "description": "Marca estos archivos como módulos ES (los carga el navegador y la prueba de consistencia del coordinador)."
+}
